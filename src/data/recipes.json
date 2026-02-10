@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "title": "Classic Chocolate Chip Cookies",
+    "description": "Delicious homemade chocolate chip cookies",
+    "prepTime": 15,
+    "cookTime": 12,
+    "servings": 24,
+    "difficulty": "Easy",
+    "image": "🍪",
+    "ingredients": [
+      "2 1/4 cups all-purpose flour",
+      "1 tsp baking soda",
+      "1 tsp salt",
+      "1 cup butter, softened",
+      "3/4 cup granulated sugar",
+      "3/4 cup packed brown sugar",
+      "2 large eggs",
+      "2 tsp vanilla extract",
+      "2 cups chocolate chips"
+    ],
+    "steps": [
+      "Preheat oven to 375°F (190°C).",
+      "In small bowl, combine flour, baking soda and salt.",
+      "In large mixer bowl, beat butter and both sugars until creamy.",
+      "Add eggs and vanilla extract; beat well.",
+      "Gradually blend in flour mixture.",
+      "Fold in chocolate chips.",
+      "Drop rounded tablespoons onto ungreased baking sheets.",
+      "Bake for 9-12 minutes or until golden brown.",
+      "Cool on baking sheets for 2 minutes; remove to wire racks."
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Simple Pasta Marinara",
+    "description": "Classic Italian tomato sauce with fresh pasta",
+    "prepTime": 10,
+    "cookTime": 25,
+    "servings": 4,
+    "difficulty": "Easy",
+    "image": "🍝",
+    "ingredients": [
+      "1 lb spaghetti or your favorite pasta",
+      "2 tbsp olive oil",
+      "4 cloves garlic, minced",
+      "1 can (28 oz) crushed tomatoes",
+      "1 tsp dried basil",
+      "1 tsp dried oregano",
+      "Salt and pepper to taste",
+      "Fresh basil leaves (optional)"
+    ],
+    "steps": [
+      "Bring a large pot of salted water to boil.",
+      "Add pasta and cook according to package directions.",
+      "Heat olive oil in a large saucepan over medium heat.",
+      "Add minced garlic and sauté for about 1 minute until fragrant.",
+      "Pour in crushed tomatoes with their juices.",
+      "Add dried basil and oregano.",
+      "Bring to a simmer and cook for 15-20 minutes.",
+      "Season with salt and pepper to taste.",
+      "Drain pasta and serve with sauce. Top with fresh basil if desired."
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Fluffy Pancakes",
+    "description": "Perfect breakfast pancakes for the whole family",
+    "prepTime": 10,
+    "cookTime": 10,
+    "servings": 4,
+    "difficulty": "Easy",
+    "image": "🥞",
+    "ingredients": [
+      "1 1/2 cups all-purpose flour",
+      "3 1/2 tsp baking powder",
+      "1 tsp salt",
+      "1 tbsp white sugar",
+      "1 1/4 cups milk",
+      "1 egg",
+      "3 tbsp butter, melted"
+    ],
+    "steps": [
+      "In a large bowl, sift together flour, baking powder, salt, and sugar.",
+      "Make a well in the center and pour in milk, egg, and melted butter.",
+      "Mix until smooth (some lumps are okay).",
+      "Heat a lightly oiled griddle or frying pan over medium-high heat.",
+      "Pour about 1/4 cup batter per pancake onto the griddle.",
+      "Brown on both sides and serve hot with maple syrup and toppings."
+    ]
+  }
+]
