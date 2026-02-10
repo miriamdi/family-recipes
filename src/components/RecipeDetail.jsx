@@ -4,13 +4,13 @@ import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 
-export default function RecipeDetail({ recipeId, onBack }) {
+export default function RecipeDetail({ recipeId, onBack, user }) {
   const [allRecipes, setAllRecipes] = useState(recipes);
   const [message, setMessage] = useState('');
   const [reactions, setReactions] = useState({});
-  const DELETE_PASSWORD = import.meta.env.VITE_DELETE_PASSWORD || 'n,fubho1992';
+  const ADMIN_EMAIL = 'miriam995@gmail.com';
   const UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD || '029944082';
-  const REMOVAL_PASSWORD = import.meta.env.VITE_IMAGE_REMOVE_PASSWORD || DELETE_PASSWORD;
+  const REMOVAL_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD || '029944082';
 
   useEffect(() => {
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
@@ -41,9 +41,30 @@ export default function RecipeDetail({ recipeId, onBack }) {
   };
 
   const handleDelete = () => {
-    const pw = window.prompt(hebrew.deletePasswordPrompt || 'Password');
-    if (pw !== DELETE_PASSWORD) {
-      alert(hebrew.passwordError);
+    // Check if user can delete: owner OR admin
+    const isOwner = user && recipe.user_email === user.email;
+    const isAdmin = user && user.email === ADMIN_EMAIL;
+    if (!isOwner && !isAdmin) {
+      alert('אינך מורשה למחוק מתכון זה');
+      return;
+    }
+
+    // Confirmation dialog
+    const confirm = window.confirm(`אתה בטוח שאתה רוצה למחוק את "${recipe.title}"?`);
+    if (!confirm) return;
+
+    if (useSupabase && supabase) {
+      (async () => {
+        try {
+          const { error } = await supabase.from('recipes').delete().eq('id', recipe.id);
+          if (error) throw error;
+          setMessage(hebrew.deleteSuccess);
+          setTimeout(() => onBack(), 800);
+        } catch (err) {
+          console.error('Delete error', err);
+          alert('שגיאה במחיקה');
+        }
+      })();
       return;
     }
 
@@ -191,7 +212,9 @@ export default function RecipeDetail({ recipeId, onBack }) {
     <div className="recipe-detail">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button className="back-button" onClick={onBack}>{hebrew.backToRecipes} ←</button>
-        <button className="delete-button" onClick={handleDelete}>{hebrew.deleteRecipe}</button>
+        {user && (recipe.user_email === user.email || user.email === ADMIN_EMAIL) && (
+          <button className="delete-button" onClick={handleDelete}>{hebrew.deleteRecipe}</button>
+        )}
       </div>
 
       {message && <div className="success-message">{message}</div>}
