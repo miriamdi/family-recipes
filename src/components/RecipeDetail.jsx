@@ -6,11 +6,17 @@ import './RecipeDetail.css';
 export default function RecipeDetail({ recipeId, onBack }) {
   const [allRecipes, setAllRecipes] = useState(recipes);
   const [message, setMessage] = useState('');
+  const [reactions, setReactions] = useState({});
+  const DELETE_PASSWORD = import.meta.env.VITE_DELETE_PASSWORD || 'n,fubho1992';
+  const UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD || '029944082';
+  const REMOVAL_PASSWORD = import.meta.env.VITE_IMAGE_REMOVE_PASSWORD || DELETE_PASSWORD;
 
   useEffect(() => {
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
     setAllRecipes([...recipes, ...userRecipes].filter(r => !deleted.includes(r.id)));
+    const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
+    setReactions(stored);
   }, []);
 
   const recipe = allRecipes.find((r) => r.id === recipeId);
@@ -27,7 +33,7 @@ export default function RecipeDetail({ recipeId, onBack }) {
 
   const handleDelete = () => {
     const pw = window.prompt(hebrew.deletePasswordPrompt || 'Password');
-    if (pw !== 'miriamdi') {
+    if (pw !== DELETE_PASSWORD) {
       alert(hebrew.passwordError);
       return;
     }
@@ -53,6 +59,85 @@ export default function RecipeDetail({ recipeId, onBack }) {
     setTimeout(() => onBack(), 800);
   };
 
+  const saveUpdatedRecipe = (updated) => {
+    const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
+    const idx = userRecipes.findIndex(r => r.id === updated.id);
+    if (idx !== -1) {
+      userRecipes[idx] = updated;
+    } else {
+      userRecipes.push(updated);
+    }
+    localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
+    const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
+    setAllRecipes([...recipes, ...userRecipes].filter(r => !deleted.includes(r.id)));
+  };
+
+  const handleAddImage = (file) => {
+    if (!file) return;
+    const pw = window.prompt('Upload password');
+    if (pw !== UPLOAD_PASSWORD) {
+      alert(hebrew.passwordError || 'Incorrect upload password');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target.result;
+      const updated = { ...recipe };
+      updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
+      if (updated.images.length >= 5) {
+        alert('מקסימום 5 תמונות');
+        return;
+      }
+      updated.images.push(data);
+      delete updated.image;
+      saveUpdatedRecipe(updated);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = (index) => {
+    const pw = window.prompt('Removal password');
+    if (pw !== REMOVAL_PASSWORD) {
+      alert(hebrew.passwordError || 'Incorrect removal password');
+      return;
+    }
+    const updated = { ...recipe };
+    updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
+    updated.images.splice(index, 1);
+    if (updated.images.length === 0 && recipe.image) {
+      // keep legacy image if it existed
+      updated.image = recipe.image;
+      delete updated.images;
+    }
+    saveUpdatedRecipe(updated);
+  };
+
+  const saveReactions = (next) => {
+    setReactions(next);
+    localStorage.setItem('recipeReactions', JSON.stringify(next));
+  };
+
+  const handleReaction = (type) => {
+    const cur = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
+    const entry = cur[recipe.id] || { likes: 0, dislikes: 0, mine: null };
+    if (entry.mine === type) {
+      if (type === 'like') entry.likes = Math.max(0, entry.likes - 1);
+      if (type === 'dislike') entry.dislikes = Math.max(0, entry.dislikes - 1);
+      entry.mine = null;
+    } else {
+      if (type === 'like') {
+        entry.likes = (entry.likes || 0) + 1;
+        if (entry.mine === 'dislike') entry.dislikes = Math.max(0, entry.dislikes - 1);
+      } else {
+        entry.dislikes = (entry.dislikes || 0) + 1;
+        if (entry.mine === 'like') entry.likes = Math.max(0, entry.likes - 1);
+      }
+      entry.mine = type;
+    }
+    cur[recipe.id] = entry;
+    saveReactions(cur);
+  };
+
   return (
     <div className="recipe-detail">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -64,10 +149,34 @@ export default function RecipeDetail({ recipeId, onBack }) {
 
       <div className="recipe-header">
         <div className="recipe-title-section">
-          <div className="large-image">{recipe.image}</div>
+          <div className="large-image">
+            {Array.isArray(recipe.images) && recipe.images[0] ? (
+              <img src={recipe.images[0]} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
+            ) : (typeof recipe.image === 'string' && recipe.image.startsWith('data:') ? (
+              <img src={recipe.image} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
+            ) : (
+              recipe.image
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
+            {Array.isArray(recipe.images) && recipe.images.length > 0 && recipe.images.map((img, idx) => (
+              <div key={idx} style={{ position: 'relative' }}>
+                <img src={img} alt={`img-${idx}`} style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6 }} />
+                <button onClick={() => handleRemoveImage(idx)} style={{ position: 'absolute', top: -6, left: -6, background: '#e74c3c', color: 'white', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer' }}>×</button>
+              </div>
+            ))}
+            <div>
+              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) handleAddImage(f); }} />
+            </div>
+          </div>
           <h1>{recipe.title}</h1>
           <p className="recipe-description">{recipe.description}</p>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+        <button onClick={() => handleReaction('like')} className="reaction-button">👍 { (reactions[recipe.id] && reactions[recipe.id].likes) || 0 }</button>
+        <button onClick={() => handleReaction('dislike')} className="reaction-button">👎 { (reactions[recipe.id] && reactions[recipe.id].dislikes) || 0 }</button>
       </div>
 
       <div className="recipe-info">

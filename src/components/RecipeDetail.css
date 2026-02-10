@@ -41,6 +41,23 @@
   margin-bottom: 20px;
 }
 
+.large-image img {
+  max-width: 100%;
+  max-height: 340px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.reaction-button {
+  padding: 8px 12px;
+  background: #f1f2f6;
+  border: 1px solid #dcdde1;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.reaction-button:hover { background: #ecf0f1; }
+
 .recipe-title-section h1 {
   color: #2c3e50;
   font-size: 2.5rem;

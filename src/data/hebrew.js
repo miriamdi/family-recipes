@@ -1,6 +1,6 @@
 export const hebrew = {
   title: "בלוג מתכונים",
-  subtitle: "מתכונים קלים ולذيים לכל המשפחה",
+  subtitle: "רעיון של נומי",
   viewRecipe: "צפה במתכון",
   backToRecipes: "חזור למתכונים",
   prepTime: "זמן הכנה",

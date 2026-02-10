@@ -22,6 +22,9 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
+  const IMAGE_UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD;
+    const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
+  const [filePreview, setFilePreview] = useState('');
 
   useEffect(() => {
     // build category list from built-in recipes and user recipes
@@ -65,7 +68,7 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
     setMessage('');
     setError('');
 
-    if (password !== '029944082') {
+    if (password !== IMAGE_UPLOAD_PASSWORD) {
       setError(hebrew.passwordError);
       return;
     }
@@ -85,6 +88,7 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
       title: name,
       description: '',
       image,
+      images: filePreview ? [filePreview] : undefined,
       category: finalCategory,
       prepTime: parseInt(prepTime) || 0,
       cookTime: parseInt(cookTime) || 0,
@@ -145,6 +149,36 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
           <div className="form-group">
             <label>{hebrew.recipeImage} • {hebrew.createEmojiInfo}</label>
             <input type="text" value={image} onChange={e => setImage(e.target.value)} maxLength={2} />
+            <div style={{ marginTop: 8 }}>
+              <input type="file" accept="image/*" onChange={(e) => {
+                const f = e.target.files && e.target.files[0];
+                if (!f) return;
+                  // basic type/size checks before processing
+                  if (!f.type || !f.type.startsWith('image/')) {
+                    setError('הקובץ חייב להיות תמונה');
+                    return;
+                  }
+                  if (f.size > MAX_IMAGE_BYTES) {
+                    setError('התמונה גדולה מדי (מקסימום 2MB)');
+                    return;
+                  }
+                  if (password !== IMAGE_UPLOAD_PASSWORD) {
+                    setError(hebrew.passwordError || 'Password required to upload image');
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    setImage(ev.target.result);
+                    setFilePreview(ev.target.result);
+                  };
+                  reader.readAsDataURL(f);
+              }} />
+            </div>
+            {filePreview && (
+              <div style={{ marginTop: 8 }}>
+                <img src={filePreview} alt="preview" style={{ maxWidth: '100%', borderRadius: 6 }} />
+              </div>
+            )}
           </div>
 
           <div className="form-group">
