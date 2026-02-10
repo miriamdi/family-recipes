@@ -47,3 +47,22 @@ npm run build
 ```
 
 7) Deploy the site as before. The frontend will use Supabase when env vars are present; otherwise it will continue to use the localStorage fallback.
+
+Edge Function (optional, recommended)
+-----------------------------------
+For more secure reaction updates (so you don't use the `service_role` key from the client), deploy the provided Edge Function `supabase/functions/reaction-upsert`.
+
+1. Install Supabase CLI: https://supabase.com/docs/guides/cli
+2. From the repo root run:
+
+```bash
+supabase login
+supabase link --project-ref your-project-ref
+supabase functions deploy reaction-upsert --no-verify-jwt
+```
+
+3. In the Supabase UI, set the function environment variables (SUPABASE_URL, SUPABASE_SERVICE_ROLE) if needed.
+4. Set `VITE_REACTIONS_API_URL` in your `.env.local` to the function URL (found in Supabase dashboard) so the frontend calls the secure endpoint.
+
+When `VITE_REACTIONS_API_URL` is set, the frontend will post { recipe_id, action } to the function which will upsert the `reactions` table using the service role key.
+

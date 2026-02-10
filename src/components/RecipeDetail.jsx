@@ -138,6 +138,24 @@ export default function RecipeDetail({ recipeId, onBack }) {
     try {
       const likedKey = 'liked_' + recipe.id;
       const currentlyLiked = !!localStorage.getItem(likedKey);
+      const REACTIONS_API = import.meta.env.VITE_REACTIONS_API_URL;
+      if (REACTIONS_API) {
+        const action = currentlyLiked ? 'unlike' : 'like';
+        const res = await fetch(REACTIONS_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipe_id: recipe.id, action })
+        });
+        if (res.ok) {
+          const j = await res.json();
+          if (currentlyLiked) localStorage.removeItem(likedKey); else localStorage.setItem(likedKey, '1');
+          const next = { ...(reactions || {}) };
+          next[recipe.id] = { likes: j.likes || 0, liked: !currentlyLiked };
+          saveReactions(next);
+          return;
+        }
+      }
+
       if (useSupabase && supabase) {
         const { data: row, error: rowErr } = await supabase.from('reactions').select('*').eq('recipe_id', recipe.id).single();
         if (rowErr && rowErr.code !== 'PGRST116') { /* ignore not found */ }
