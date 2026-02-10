@@ -14,7 +14,8 @@ export default function RecipeDetail({ recipeId, onBack }) {
   useEffect(() => {
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-    setAllRecipes([...recipes, ...userRecipes].filter(r => !deleted.includes(r.id)));
+    // prefer userRecipes over built-in recipes so edits/added images take effect immediately
+    setAllRecipes([...userRecipes, ...recipes].filter(r => !deleted.includes(r.id)));
     const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
     setReactions(stored);
   }, []);
@@ -69,7 +70,8 @@ export default function RecipeDetail({ recipeId, onBack }) {
     }
     localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-    setAllRecipes([...recipes, ...userRecipes].filter(r => !deleted.includes(r.id)));
+    // ensure userRecipes override built-in versions
+    setAllRecipes([...userRecipes, ...recipes].filter(r => !deleted.includes(r.id)));
   };
 
   const handleAddImage = (file) => {
@@ -117,22 +119,15 @@ export default function RecipeDetail({ recipeId, onBack }) {
     localStorage.setItem('recipeReactions', JSON.stringify(next));
   };
 
-  const handleReaction = (type) => {
+  const handleReaction = () => {
     const cur = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
-    const entry = cur[recipe.id] || { likes: 0, dislikes: 0, mine: null };
-    if (entry.mine === type) {
-      if (type === 'like') entry.likes = Math.max(0, entry.likes - 1);
-      if (type === 'dislike') entry.dislikes = Math.max(0, entry.dislikes - 1);
-      entry.mine = null;
+    const entry = cur[recipe.id] || { likes: 0 };
+    if (entry.liked) {
+      entry.likes = Math.max(0, entry.likes - 1);
+      entry.liked = false;
     } else {
-      if (type === 'like') {
-        entry.likes = (entry.likes || 0) + 1;
-        if (entry.mine === 'dislike') entry.dislikes = Math.max(0, entry.dislikes - 1);
-      } else {
-        entry.dislikes = (entry.dislikes || 0) + 1;
-        if (entry.mine === 'like') entry.likes = Math.max(0, entry.likes - 1);
-      }
-      entry.mine = type;
+      entry.likes = (entry.likes || 0) + 1;
+      entry.liked = true;
     }
     cur[recipe.id] = entry;
     saveReactions(cur);
@@ -175,8 +170,7 @@ export default function RecipeDetail({ recipeId, onBack }) {
       </div>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-        <button onClick={() => handleReaction('like')} className="reaction-button">👍 { (reactions[recipe.id] && reactions[recipe.id].likes) || 0 }</button>
-        <button onClick={() => handleReaction('dislike')} className="reaction-button">👎 { (reactions[recipe.id] && reactions[recipe.id].dislikes) || 0 }</button>
+        <button onClick={() => handleReaction()} className="reaction-button" style={{ opacity: reactions[recipe.id]?.liked ? 1 : 0.6 }}>👍 { (reactions[recipe.id] && reactions[recipe.id].likes) || 0 }</button>
       </div>
 
       <div className="recipe-info">

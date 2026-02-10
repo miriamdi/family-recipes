@@ -31,5 +31,6 @@ export const hebrew = {
   deleteRecipe: "מחק מתכון",
   deleteSuccess: "המתכון נמחק",
   deletePasswordPrompt: "הכנס סיסמת מחיקה",
-  createEmojiInfo: "אימוג'י ייווצר אוטומטית לפי השם"
+  createEmojiInfo: "אימוג'י ייווצר אוטומטית לפי השם",
+  popularity: "הנפוצים"
 };
