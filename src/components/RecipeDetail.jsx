@@ -5,23 +5,62 @@ import './RecipeDetail.css';
 
 export default function RecipeDetail({ recipeId, onBack }) {
   const [allRecipes, setAllRecipes] = useState(recipes);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-    setAllRecipes([...recipes, ...userRecipes]);
+    const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
+    setAllRecipes([...recipes, ...userRecipes].filter(r => !deleted.includes(r.id)));
   }, []);
 
   const recipe = allRecipes.find((r) => r.id === recipeId);
 
   if (!recipe) {
-    return <div>المتكن لم يتم العثور عليه</div>;
+    return <div>המתכון לא נמצא</div>;
   }
+
+  const formatIngredient = (ing) => {
+    if (!ing) return '';
+    if (typeof ing === 'string') return ing;
+    return `${ing.name}${ing.qty ? ' • ' + ing.qty : ''}${ing.unit ? ' ' + ing.unit : ''}`;
+  };
+
+  const handleDelete = () => {
+    const pw = window.prompt(hebrew.deletePasswordPrompt || 'Password');
+    if (pw !== 'miriamdi') {
+      alert(hebrew.passwordError);
+      return;
+    }
+
+    const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
+    // try to remove from userRecipes
+    const idx = userRecipes.findIndex(r => r.id === recipe.id);
+    if (idx !== -1) {
+      userRecipes.splice(idx, 1);
+      localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
+      setMessage(hebrew.deleteSuccess);
+      setTimeout(() => onBack(), 800);
+      return;
+    }
+
+    // mark built-in as deleted
+    const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
+    if (!deleted.includes(recipe.id)) {
+      deleted.push(recipe.id);
+      localStorage.setItem('deletedRecipes', JSON.stringify(deleted));
+    }
+    setMessage(hebrew.deleteSuccess);
+    setTimeout(() => onBack(), 800);
+  };
 
   return (
     <div className="recipe-detail">
-      <button className="back-button" onClick={onBack}>
-        {hebrew.backToRecipes} ←
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="back-button" onClick={onBack}>{hebrew.backToRecipes} ←</button>
+        <button className="delete-button" onClick={handleDelete}>{hebrew.deleteRecipe}</button>
+      </div>
+
+      {message && <div className="success-message">{message}</div>}
 
       <div className="recipe-header">
         <div className="recipe-title-section">
@@ -54,10 +93,10 @@ export default function RecipeDetail({ recipeId, onBack }) {
         <div className="ingredients-section">
           <h2>{hebrew.ingredients}</h2>
           <ul className="ingredients-list">
-            {recipe.ingredients.map((ingredient, index) => (
+            {Array.isArray(recipe.ingredients) && recipe.ingredients.map((ingredient, index) => (
               <li key={index}>
                 <input type="checkbox" id={`ingredient-${index}`} />
-                <label htmlFor={`ingredient-${index}`}>{ingredient}</label>
+                <label htmlFor={`ingredient-${index}`}>{formatIngredient(ingredient)}</label>
               </li>
             ))}
           </ul>
@@ -66,7 +105,7 @@ export default function RecipeDetail({ recipeId, onBack }) {
         <div className="instructions-section">
           <h2>{hebrew.instructions}</h2>
           <ol className="instructions-list">
-            {recipe.steps.map((step, index) => (
+            {Array.isArray(recipe.steps) && recipe.steps.map((step, index) => (
               <li key={index}>
                 <input type="checkbox" id={`step-${index}`} />
                 <label htmlFor={`step-${index}`}>{step}</label>

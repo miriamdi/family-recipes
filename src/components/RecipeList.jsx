@@ -13,7 +13,9 @@ export default function RecipeList({ onSelectRecipe }) {
 
   const loadRecipes = () => {
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-    setAllRecipes([...recipes, ...userRecipes]);
+    const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
+    const combined = [...recipes, ...userRecipes].filter(r => !deleted.includes(r.id));
+    setAllRecipes(combined);
   };
 
   const handleRecipeAdded = () => {
@@ -24,7 +26,7 @@ export default function RecipeList({ onSelectRecipe }) {
     <div className="recipe-list">
       <h1>{hebrew.title}</h1>
       <p className="subtitle">{hebrew.subtitle}</p>
-      <AddRecipe onRecipeAdded={handleRecipeAdded} recipes={allRecipes} />
+      <AddRecipe onRecipeAdded={handleRecipeAdded} recipes={recipes} />
       <div className="recipes-grid">
         {allRecipes.map((recipe) => (
           <div
@@ -36,7 +38,7 @@ export default function RecipeList({ onSelectRecipe }) {
             <h2>{recipe.title}</h2>
             <p className="recipe-description">{recipe.description}</p>
             <div className="recipe-meta">
-              <span>⏱️ {recipe.prepTime + recipe.cookTime} דקות</span>
+              <span>⏱️ {Number(recipe.prepTime || 0) + Number(recipe.cookTime || 0)} דקות</span>
               <span>👥 {recipe.servings}</span>
             </div>
             <button className="learn-more">{hebrew.viewRecipe}</button>

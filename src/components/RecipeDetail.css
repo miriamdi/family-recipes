@@ -203,3 +203,16 @@
     font-size: 0.9rem;
   }
 }
+
+.delete-button {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.delete-button:hover {
+  background-color: #c0392b;
+}
