@@ -3,6 +3,7 @@ import recipes from '../data/recipes.json';
 import { hebrew } from '../data/hebrew';
 import AddRecipe from './AddRecipe';
 import './RecipeList.css';
+import { supabase, useSupabase } from '../lib/supabaseClient';
 
 export default function RecipeList({ onSelectRecipe }) {
   const [allRecipes, setAllRecipes] = useState(recipes);
@@ -13,10 +14,27 @@ export default function RecipeList({ onSelectRecipe }) {
     loadRecipes();
   }, []);
 
-  const loadRecipes = () => {
+  const loadRecipes = async () => {
+    try {
+      if (useSupabase && supabase) {
+        const { data: dbRecipes, error: rErr } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
+        if (rErr) throw rErr;
+        const { data: rx, error: rxErr } = await supabase.from('reactions').select('*');
+        if (rxErr) throw rxErr;
+        const reactionsMap = {};
+        (rx || []).forEach(row => { reactionsMap[row.recipe_id] = { likes: row.likes || 0, liked: Boolean(localStorage.getItem('liked_' + row.recipe_id)) }; });
+        setReactions(reactionsMap);
+        if (dbRecipes && dbRecipes.length) {
+          setAllRecipes(dbRecipes);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Error loading from Supabase', err);
+    }
+
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-    // prefer userRecipes so edits/images show immediately
     const combined = [...userRecipes, ...recipes].filter(r => !deleted.includes(r.id));
     setAllRecipes(combined);
   };
@@ -35,19 +53,42 @@ export default function RecipeList({ onSelectRecipe }) {
     localStorage.setItem('recipeReactions', JSON.stringify(next));
   };
 
-  const handleReaction = (e, id) => {
+  const handleReaction = async (e, id) => {
     e.stopPropagation();
-    const cur = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
-    const entry = cur[id] || { likes: 0 };
-    if (entry.liked) {
-      entry.likes = Math.max(0, entry.likes - 1);
-      entry.liked = false;
-    } else {
-      entry.likes = (entry.likes || 0) + 1;
-      entry.liked = true;
+    try {
+      const likedKey = 'liked_' + id;
+      const currentlyLiked = !!localStorage.getItem(likedKey);
+      if (useSupabase && supabase) {
+        const { data: row, error: rowErr } = await supabase.from('reactions').select('*').eq('recipe_id', id).single();
+        if (rowErr && rowErr.code !== 'PGRST116') { /* ignore not found */ }
+        const currentLikes = row?.likes || 0;
+        const nextLikes = currentlyLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
+        const upsert = { recipe_id: id, likes: nextLikes };
+        const { error: upErr } = await supabase.from('reactions').upsert(upsert, { onConflict: ['recipe_id'] });
+        if (upErr) throw upErr;
+        if (currentlyLiked) localStorage.removeItem(likedKey); else localStorage.setItem(likedKey, '1');
+        const next = { ...(reactions || {}) };
+        next[id] = { likes: nextLikes, liked: !currentlyLiked };
+        saveReactions(next);
+        return;
+      }
+
+      const cur = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
+      const entry = cur[id] || { likes: 0 };
+      if (entry.liked) {
+        entry.likes = Math.max(0, entry.likes - 1);
+        entry.liked = false;
+        localStorage.removeItem('liked_' + id);
+      } else {
+        entry.likes = (entry.likes || 0) + 1;
+        entry.liked = true;
+        localStorage.setItem('liked_' + id, '1');
+      }
+      cur[id] = entry;
+      saveReactions(cur);
+    } catch (err) {
+      console.error('Reaction error', err);
     }
-    cur[id] = entry;
-    saveReactions(cur);
   };
 
   const sortRecipes = (items) => {
@@ -59,18 +100,19 @@ export default function RecipeList({ onSelectRecipe }) {
         return sorted.sort((a, b) => a.title.localeCompare(b.title, 'he'));
       case 'prepTime':
         return sorted.sort((a, b) => (a.prepTime || 0) - (b.prepTime || 0));
-      case 'totalTime':
-        return sorted.sort((a, b) => 
-          (Number(a.prepTime || 0) + Number(a.cookTime || 0)) - 
-          (Number(b.prepTime || 0) + Number(b.cookTime || 0))
-        );
-      case 'difficulty':
+      case 'totalTime': {
+        return sorted.sort((a, b) => {
+          const ta = Number(a.prepTime || 0) + Number(a.cookTime || 0);
+          const tb = Number(b.prepTime || 0) + Number(b.cookTime || 0);
+          return ta - tb;
+        });
+      }
+      case 'difficulty': {
         const diffOrder = { 'קל': 1, 'בינוני': 2, 'קשה': 3 };
         return sorted.sort((a, b) => (diffOrder[a.difficulty] || 0) - (diffOrder[b.difficulty] || 0));
+      }
       case 'popularity':
-        return sorted.sort((a, b) => 
-          (reactions[b.id]?.likes || 0) - (reactions[a.id]?.likes || 0)
-        );
+        return sorted.sort((a, b) => (reactions[b.id]?.likes || 0) - (reactions[a.id]?.likes || 0));
       case 'category':
       default:
         return sorted;
@@ -148,7 +190,6 @@ export default function RecipeList({ onSelectRecipe }) {
 
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button onClick={(e) => handleReaction(e, recipe.id)} className="reaction-button" style={{ opacity: r.liked ? 1 : 0.6 }}>👍 {r.likes || 0}</button>
-                    <button className="learn-more">{hebrew.viewRecipe}</button>
                   </div>
                 </div>
               );

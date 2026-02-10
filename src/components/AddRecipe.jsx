@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { hebrew } from '../data/hebrew';
 import './AddRecipe.css';
+import { supabase, useSupabase } from '../lib/supabaseClient';
 
 export default function AddRecipe({ onRecipeAdded, recipes }) {
   const [showForm, setShowForm] = useState(false);
@@ -25,6 +26,8 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
   const IMAGE_UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD;
     const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
   const [filePreview, setFilePreview] = useState('');
+  const [recipeFileName, setRecipeFileName] = useState('');
+  const [authorFileName, setAuthorFileName] = useState('');
 
   useEffect(() => {
     // build category list from built-in recipes and user recipes
@@ -67,7 +70,6 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
     e.preventDefault();
     setMessage('');
     setError('');
-
     if (password !== IMAGE_UPLOAD_PASSWORD) {
       setError(hebrew.passwordError);
       return;
@@ -78,29 +80,65 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
       return;
     }
 
-    const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-    const newId = Math.max(...recipes.map(r => r.id), ...userRecipes.map(r => r.id), 0) + 1;
-
     const finalCategory = useNewCategory && newCategory ? newCategory : category || '';
 
-    const newRecipe = {
-      id: newId,
+    const payload = {
       title: name,
       description: '',
-      image,
-      images: filePreview ? [filePreview] : undefined,
+      image: typeof image === 'string' && image.startsWith('data:') ? null : image,
+      images: filePreview ? [filePreview] : null,
       category: finalCategory,
       prepTime: parseInt(prepTime) || 0,
       cookTime: parseInt(cookTime) || 0,
       servings: parseInt(servings) || 1,
       difficulty,
       source,
+      recipeFile: recipeFileName || null,
+      authorFile: authorFileName || null,
       ingredients: ingredients
         .filter(i => i.name.trim())
         .map(i => ({ name: i.name.trim(), unit: i.unit.trim(), qty: i.qty.trim() })),
       steps: steps.split('\n').map(s => s.trim()).filter(Boolean)
     };
 
+    if (useSupabase && supabase) {
+      (async () => {
+        try {
+          let imageUrl = null;
+          if (filePreview && filePreview.startsWith('data:')) {
+            const res = await fetch(filePreview);
+            const blob = await res.blob();
+            const filename = `recipes/${Date.now()}.png`;
+            const { error: upErr } = await supabase.storage.from('recipes-images').upload(filename, blob, { upsert: true });
+            if (upErr) throw upErr;
+            const { publicURL } = supabase.storage.from('recipes-images').getPublicUrl(filename);
+            imageUrl = publicURL;
+          }
+
+          const toInsert = { ...payload, images: imageUrl ? [imageUrl] : payload.images };
+          const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select();
+          if (insertErr) throw insertErr;
+          setMessage(hebrew.successMessage);
+          setTimeout(() => {
+            onRecipeAdded();
+            setShowForm(false);
+            setRecipeFileName('');
+            setAuthorFileName('');
+            setFilePreview('');
+            setMessage('');
+          }, 800);
+        } catch (err) {
+          console.error('Supabase insert error', err);
+          setError('שגיאה בשמירה בשרת');
+        }
+      })();
+      return;
+    }
+
+    // fallback to localStorage when Supabase not configured
+    const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
+    const newId = Math.max(...recipes.map(r => r.id), ...userRecipes.map(r => r.id), 0) + 1;
+    const newRecipe = { id: newId, ...payload };
     userRecipes.push(newRecipe);
     localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
 
@@ -108,6 +146,9 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
     setTimeout(() => {
       onRecipeAdded();
       setShowForm(false);
+      setRecipeFileName('');
+      setAuthorFileName('');
+      setFilePreview('');
       setMessage('');
     }, 1000);
   };
@@ -131,6 +172,9 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
               setShowForm(false);
               setError('');
               setMessage('');
+              setRecipeFileName('');
+              setAuthorFileName('');
+              setFilePreview('');
             }}
           >
             ✕
@@ -144,6 +188,16 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
           <div className="form-group">
             <label>{hebrew.recipeName}</label>
             <input type="text" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+
+          <div className="form-group">
+            <label>העלאת מתכון</label>
+            <input type="file" accept=".pdf,.txt,.md" onChange={e => {
+              const f = e.target.files && e.target.files[0];
+              if (!f) return;
+              setRecipeFileName(f.name);
+            }} />
+            {recipeFileName && <div style={{ marginTop: 6 }}>{recipeFileName}</div>}
           </div>
 
           <div className="form-group">
@@ -227,6 +281,16 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
           </div>
 
           <div className="form-group">
+            <label>העלאת מאת</label>
+            <input type="file" accept=".pdf,.txt,.md" onChange={e => {
+              const f = e.target.files && e.target.files[0];
+              if (!f) return;
+              setAuthorFileName(f.name);
+            }} />
+            {authorFileName && <div style={{ marginTop: 6 }}>{authorFileName}</div>}
+          </div>
+
+          <div className="form-group">
             <label>{hebrew.ingredientsList}</label>
             {ingredients.map((ing, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -251,7 +315,7 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
 
           <div className="form-buttons">
             <button type="submit" className="submit-button">{hebrew.submit}</button>
-            <button type="button" className="cancel-button" onClick={() => { setShowForm(false); setError(''); setMessage(''); }}>{hebrew.cancel}</button>
+            <button type="button" className="cancel-button" onClick={() => { setShowForm(false); setError(''); setMessage(''); setRecipeFileName(''); setAuthorFileName(''); setFilePreview(''); }}>{hebrew.cancel}</button>
           </div>
         </form>
       </div>

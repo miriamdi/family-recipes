@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import recipes from '../data/recipes.json';
 import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
+import { supabase, useSupabase } from '../lib/supabaseClient';
 
 export default function RecipeDetail({ recipeId, onBack }) {
   const [allRecipes, setAllRecipes] = useState(recipes);
@@ -14,8 +15,15 @@ export default function RecipeDetail({ recipeId, onBack }) {
   useEffect(() => {
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-    // prefer userRecipes over built-in recipes so edits/added images take effect immediately
-    setAllRecipes([...userRecipes, ...recipes].filter(r => !deleted.includes(r.id)));
+    // deduplicate: userRecipes override built-in recipes with same id
+    const seen = new Set();
+    const combined = [...userRecipes, ...recipes].filter(r => {
+      if (deleted.includes(r.id)) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+    setAllRecipes(combined);
     const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
     setReactions(stored);
   }, []);
@@ -70,8 +78,15 @@ export default function RecipeDetail({ recipeId, onBack }) {
     }
     localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-    // ensure userRecipes override built-in versions
-    setAllRecipes([...userRecipes, ...recipes].filter(r => !deleted.includes(r.id)));
+    // deduplicate: userRecipes override built-in recipes with same id
+    const seen = new Set();
+    const combined = [...userRecipes, ...recipes].filter(r => {
+      if (deleted.includes(r.id)) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+    setAllRecipes(combined);
   };
 
   const handleAddImage = (file) => {
@@ -119,18 +134,39 @@ export default function RecipeDetail({ recipeId, onBack }) {
     localStorage.setItem('recipeReactions', JSON.stringify(next));
   };
 
-  const handleReaction = () => {
-    const cur = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
-    const entry = cur[recipe.id] || { likes: 0 };
-    if (entry.liked) {
-      entry.likes = Math.max(0, entry.likes - 1);
-      entry.liked = false;
-    } else {
-      entry.likes = (entry.likes || 0) + 1;
-      entry.liked = true;
+  const handleReaction = async () => {
+    try {
+      const likedKey = 'liked_' + recipe.id;
+      const currentlyLiked = !!localStorage.getItem(likedKey);
+      if (useSupabase && supabase) {
+        const { data: row, error: rowErr } = await supabase.from('reactions').select('*').eq('recipe_id', recipe.id).single();
+        if (rowErr && rowErr.code !== 'PGRST116') { /* ignore not found */ }
+        const currentLikes = row?.likes || 0;
+        const nextLikes = currentlyLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
+        const upsert = { recipe_id: recipe.id, likes: nextLikes };
+        const { error: upErr } = await supabase.from('reactions').upsert(upsert, { onConflict: ['recipe_id'] });
+        if (upErr) throw upErr;
+        if (currentlyLiked) localStorage.removeItem(likedKey); else localStorage.setItem(likedKey, '1');
+        const next = { ...(reactions || {}) };
+        next[recipe.id] = { likes: nextLikes, liked: !currentlyLiked };
+        saveReactions(next);
+        return;
+      }
+
+      const cur = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
+      const entry = cur[recipe.id] || { likes: 0 };
+      if (entry.liked) {
+        entry.likes = Math.max(0, entry.likes - 1);
+        entry.liked = false;
+      } else {
+        entry.likes = (entry.likes || 0) + 1;
+        entry.liked = true;
+      }
+      cur[recipe.id] = entry;
+      saveReactions(cur);
+    } catch (err) {
+      console.error('Reaction error', err);
     }
-    cur[recipe.id] = entry;
-    saveReactions(cur);
   };
 
   return (
