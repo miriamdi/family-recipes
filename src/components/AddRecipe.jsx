@@ -3,7 +3,7 @@ import { hebrew } from '../data/hebrew';
 import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 
-export default function AddRecipe({ onRecipeAdded, recipes }) {
+export default function AddRecipe({ onRecipeAdded, recipes, user }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [image, setImage] = useState('');
@@ -70,11 +70,6 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
     e.preventDefault();
     setMessage('');
     setError('');
-    if (password !== IMAGE_UPLOAD_PASSWORD) {
-      setError(hebrew.passwordError);
-      return;
-    }
-
     if (!name || ingredients.length === 0 || !steps) {
       setError('בבקשה מלא את כל השדות הנדרשים');
       return;
@@ -88,13 +83,13 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
       image: typeof image === 'string' && image.startsWith('data:') ? null : image,
       images: filePreview ? [filePreview] : null,
       category: finalCategory,
-      prepTime: parseInt(prepTime) || 0,
-      cookTime: parseInt(cookTime) || 0,
+      prep_time: parseInt(prepTime) || 0,
+      cook_time: parseInt(cookTime) || 0,
       servings: parseInt(servings) || 1,
       difficulty,
       source,
-      recipeFile: recipeFileName || null,
-      authorFile: authorFileName || null,
+      recipe_file: recipeFileName || null,
+      author_file: authorFileName || null,
       ingredients: ingredients
         .filter(i => i.name.trim())
         .map(i => ({ name: i.name.trim(), unit: i.unit.trim(), qty: i.qty.trim() })),
@@ -102,20 +97,25 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
     };
 
     if (useSupabase && supabase) {
+      if (!user) {
+        setError('אנא התחבר קודם כדי לשלוח מתכון');
+        return;
+      }
       (async () => {
         try {
           let imageUrl = null;
           if (filePreview && filePreview.startsWith('data:')) {
             const res = await fetch(filePreview);
             const blob = await res.blob();
-            const filename = `recipes/${Date.now()}.png`;
+            const ext = blob.type.split('/')[1] || 'png';
+            const filename = `recipes/${Date.now()}.${ext}`;
             const { error: upErr } = await supabase.storage.from('recipes-images').upload(filename, blob, { upsert: true });
             if (upErr) throw upErr;
-            const { publicURL } = supabase.storage.from('recipes-images').getPublicUrl(filename);
-            imageUrl = publicURL;
+            const { data: urlData } = supabase.storage.from('recipes-images').getPublicUrl(filename);
+            imageUrl = urlData?.publicUrl || null;
           }
 
-          const toInsert = { ...payload, images: imageUrl ? [imageUrl] : payload.images };
+          const toInsert = { ...payload, images: imageUrl ? [imageUrl] : payload.images, user_id: user.id, user_email: user.email };
           const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select();
           if (insertErr) throw insertErr;
           setMessage(hebrew.successMessage);
@@ -309,8 +309,7 @@ export default function AddRecipe({ onRecipeAdded, recipes }) {
           </div>
 
           <div className="form-group">
-            <label>{hebrew.password}</label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
+            {/* password field removed when using Supabase auth */}
           </div>
 
           <div className="form-buttons">

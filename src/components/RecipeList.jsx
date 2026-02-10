@@ -5,7 +5,7 @@ import AddRecipe from './AddRecipe';
 import './RecipeList.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 
-export default function RecipeList({ onSelectRecipe }) {
+export default function RecipeList({ onSelectRecipe, user }) {
   const [allRecipes, setAllRecipes] = useState(recipes);
   const [reactions, setReactions] = useState({});
   const [sortBy, setSortBy] = useState('category');
@@ -25,7 +25,28 @@ export default function RecipeList({ onSelectRecipe }) {
         (rx || []).forEach(row => { reactionsMap[row.recipe_id] = { likes: row.likes || 0, liked: Boolean(localStorage.getItem('liked_' + row.recipe_id)) }; });
         setReactions(reactionsMap);
         if (dbRecipes && dbRecipes.length) {
-          setAllRecipes(dbRecipes);
+          // map snake_case DB fields to existing camelCase shape used by the UI
+          const mapped = dbRecipes.map(r => ({
+            ...r,
+            id: r.id,
+            title: r.title,
+            description: r.description,
+            image: r.image,
+            images: r.images,
+            category: r.category,
+            prepTime: r.prep_time,
+            cookTime: r.cook_time,
+            servings: r.servings,
+            difficulty: r.difficulty,
+            source: r.source,
+            recipeFile: r.recipe_file,
+            authorFile: r.author_file,
+            ingredients: r.ingredients,
+            steps: r.steps,
+            user_email: r.user_email,
+            created_at: r.created_at
+          }));
+          setAllRecipes(mapped);
           return;
         }
       }
@@ -164,7 +185,7 @@ export default function RecipeList({ onSelectRecipe }) {
       <p className="subtitle">{hebrew.subtitle}</p>
       
       <div className="list-controls">
-        <AddRecipe onRecipeAdded={handleRecipeAdded} recipes={recipes} />
+        <AddRecipe onRecipeAdded={handleRecipeAdded} recipes={recipes} user={user} />
         <div className="sort-container">
           <label>סדר לפי:</label>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
