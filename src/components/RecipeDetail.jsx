@@ -1,18 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import recipes from '../data/recipes.json';
+import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
 
 export default function RecipeDetail({ recipeId, onBack }) {
-  const recipe = recipes.find((r) => r.id === recipeId);
+  const [allRecipes, setAllRecipes] = useState(recipes);
+
+  useEffect(() => {
+    const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
+    setAllRecipes([...recipes, ...userRecipes]);
+  }, []);
+
+  const recipe = allRecipes.find((r) => r.id === recipeId);
 
   if (!recipe) {
-    return <div>Recipe not found</div>;
+    return <div>المتكن لم يتم العثور عليه</div>;
   }
 
   return (
     <div className="recipe-detail">
       <button className="back-button" onClick={onBack}>
-        ← Back to Recipes
+        {hebrew.backToRecipes} ←
       </button>
 
       <div className="recipe-header">
@@ -25,26 +33,26 @@ export default function RecipeDetail({ recipeId, onBack }) {
 
       <div className="recipe-info">
         <div className="info-item">
-          <strong>⏱️ Prep Time</strong>
-          <p>{recipe.prepTime} min</p>
+          <strong>⏱️ {hebrew.prepTime}</strong>
+          <p>{recipe.prepTime} דקות</p>
         </div>
         <div className="info-item">
-          <strong>🔥 Cook Time</strong>
-          <p>{recipe.cookTime} min</p>
+          <strong>🔥 {hebrew.cookTime}</strong>
+          <p>{recipe.cookTime} דקות</p>
         </div>
         <div className="info-item">
-          <strong>👥 Servings</strong>
+          <strong>👥 {hebrew.servings}</strong>
           <p>{recipe.servings}</p>
         </div>
         <div className="info-item">
-          <strong>📊 Difficulty</strong>
+          <strong>📊 {hebrew.difficulty}</strong>
           <p>{recipe.difficulty}</p>
         </div>
       </div>
 
       <div className="recipe-content">
         <div className="ingredients-section">
-          <h2>Ingredients</h2>
+          <h2>{hebrew.ingredients}</h2>
           <ul className="ingredients-list">
             {recipe.ingredients.map((ingredient, index) => (
               <li key={index}>
@@ -56,7 +64,7 @@ export default function RecipeDetail({ recipeId, onBack }) {
         </div>
 
         <div className="instructions-section">
-          <h2>Instructions</h2>
+          <h2>{hebrew.instructions}</h2>
           <ol className="instructions-list">
             {recipe.steps.map((step, index) => (
               <li key={index}>

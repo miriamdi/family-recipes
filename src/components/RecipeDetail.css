@@ -1,8 +1,10 @@
-/* Recipe Detail Styles */
+/* Recipe Detail Styles - RTL */
 .recipe-detail {
   max-width: 900px;
   margin: 0 auto;
   padding: 20px;
+  direction: rtl;
+  text-align: right;
 }
 
 .back-button {
@@ -16,6 +18,7 @@
   font-weight: bold;
   margin-bottom: 20px;
   transition: background-color 0.3s;
+  font-family: inherit;
 }
 
 .back-button:hover {
@@ -91,6 +94,8 @@
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  direction: rtl;
+  text-align: right;
 }
 
 .ingredients-section h2,
@@ -116,6 +121,7 @@
   padding: 10px;
   border-radius: 5px;
   transition: background-color 0.2s;
+  flex-direction: row-reverse;
 }
 
 .ingredients-list li:hover,
@@ -138,6 +144,7 @@
   flex: 1;
   color: #2c3e50;
   line-height: 1.5;
+  text-align: right;
 }
 
 .ingredients-list input[type="checkbox"]:checked + label,
