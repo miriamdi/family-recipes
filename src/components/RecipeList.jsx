@@ -24,6 +24,8 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
 
         if (rErr) throw rErr;
 
+        console.debug('[loadRecipes] fetched from supabase:', (dbRecipes || []).length, 'rows', (dbRecipes || []).slice(0,5).map(r => r.id));
+
         const { data: rx, error: rxErr } = await supabase
           .from('reactions')
           .select('*');
@@ -58,7 +60,16 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
     setAllRecipes(recipes);
   };
 
-  const handleRecipeAdded = () => {
+  const handleRecipeAdded = (newRecipe) => {
+    // If a normalized recipe is provided, optimistically prepend it to state so it's visible immediately
+    if (newRecipe && newRecipe.id) {
+      setAllRecipes(prev => {
+        if (prev.find(r => String(r.id) === String(newRecipe.id))) return prev;
+        return [{ ...newRecipe }, ...prev];
+      });
+      return;
+    }
+
     loadRecipes();
   };
 

@@ -142,9 +142,13 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
           return;
         }
 
+        // normalize inserted row (Supabase returns snake_case)
+        const inserted = Array.isArray(data) && data[0] ? data[0] : null;
+        const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
+
         setMessage(hebrew.successMessage);
         setTimeout(() => {
-          onRecipeAdded();
+          onRecipeAdded(uiRecipe);
           setShowForm(false);
           setRecipeFileName('');
           setAuthorFileName('');
@@ -170,7 +174,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
 
     setMessage(hebrew.successMessage);
     setTimeout(() => {
-      onRecipeAdded();
+      onRecipeAdded(newRecipe);
       setShowForm(false);
       setRecipeFileName('');
       setAuthorFileName('');
