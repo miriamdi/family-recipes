@@ -116,7 +116,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
           />
         ) : (
           <div style={{ fontSize: 13, opacity: 0.7 }}>
-            התחברי כדי להוסיף מתכון
+            התחברו כדי להוסיף מתכונים
           </div>
         )}
 

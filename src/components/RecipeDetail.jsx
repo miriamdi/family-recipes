@@ -9,8 +9,6 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
   const [message, setMessage] = useState('');
   const [reactions, setReactions] = useState({});
   const ADMIN_EMAIL = 'miriam995@gmail.com';
-  const UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD || '029944082';
-  const REMOVAL_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD || '029944082';
 
   useEffect(() => {
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
@@ -112,9 +110,11 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
 
   const handleAddImage = (file) => {
     if (!file) return;
-    const pw = window.prompt('Upload password');
-    if (pw !== UPLOAD_PASSWORD) {
-      alert(hebrew.passwordError || 'Incorrect upload password');
+    // Only allow owner or admin to add images
+    const isOwner = user && recipe.user_email === user.email;
+    const isAdmin = user && user.email === ADMIN_EMAIL;
+    if (!isOwner && !isAdmin) {
+      alert('אינך מורשה להוסיף תמונה');
       return;
     }
     const reader = new FileReader();
@@ -134,11 +134,14 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
   };
 
   const handleRemoveImage = (index) => {
-    const pw = window.prompt('Removal password');
-    if (pw !== REMOVAL_PASSWORD) {
-      alert(hebrew.passwordError || 'Incorrect removal password');
+    // Only allow owner or admin to remove images
+    const isOwner = user && recipe.user_email === user.email;
+    const isAdmin = user && user.email === ADMIN_EMAIL;
+    if (!isOwner && !isAdmin) {
+      alert('אינך מורשה להסיר תמונה');
       return;
     }
+    if (!window.confirm('האם אתה בטוח שברצונך להסיר תמונה זו?')) return;
     const updated = { ...recipe };
     updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
     updated.images.splice(index, 1);

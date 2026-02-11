@@ -19,11 +19,11 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
     { name: '', unit: '', qty: '' }
   ]);
   const [steps, setSteps] = useState('');
-  const [password, setPassword] = useState('');
+  // const [password, setPassword] = useState(''); // removed, no longer needed
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
-  const IMAGE_UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD;
+  // const IMAGE_UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD; // removed, no longer needed
     const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
   const [filePreview, setFilePreview] = useState('');
   const [recipeFileName, setRecipeFileName] = useState('');
@@ -216,10 +216,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
                     setError('התמונה גדולה מדי (מקסימום 2MB)');
                     return;
                   }
-                  if (password !== IMAGE_UPLOAD_PASSWORD) {
-                    setError(hebrew.passwordError || 'Password required to upload image');
-                    return;
-                  }
+                  // password check removed, handled by Supabase auth
                   const reader = new FileReader();
                   reader.onload = (ev) => {
                     setImage(ev.target.result);
@@ -308,9 +305,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
             <textarea value={steps} onChange={e => setSteps(e.target.value)} rows={6} />
           </div>
 
-          <div className="form-group">
-            {/* password field removed when using Supabase auth */}
-          </div>
+          {/* password field removed, Supabase auth in use */}
 
           <div className="form-buttons">
             <button type="submit" className="submit-button">{hebrew.submit}</button>
