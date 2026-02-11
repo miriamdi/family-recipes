@@ -7,35 +7,40 @@ import { getOrCreateProfile } from './lib/profile';
 
 function AuthControls({ user, setUser }) {
   const login = async () => {
+    if (!useSupabase || !supabase) {
+      alert('Authentication is not configured for this deployment. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY and rebuild.');
+      return;
+    }
+
     const email = window.prompt('נא להכניס את האימייל שלך לקבלת לינק להתחברות');
     if (!email) return;
 
     try {
-      if (useSupabase && supabase) {
-        const { data, error } = await supabase
-          .from('approved_emails')
-          .select('email')
-          .eq('email', email)
-          .maybeSingle();
+      const { data, error } = await supabase
+        .from('approved_emails')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
 
-        if (error) throw error;
-        if (!data) {
-          alert('האימייל שלך לא מעודכן במערכת');
-          return;
-        }
+      if (error) throw error;
+      if (!data) {
+        alert('האימייל שלך לא מעודכן במערכת');
+        return;
       }
 
-      await supabase.auth.signInWithOtp({
+      const { error: signErr } = await supabase.auth.signInWithOtp({
         email,
         options: {
           emailRedirectTo: window.location.origin + import.meta.env.BASE_URL,
         },
       });
 
+      if (signErr) throw signErr;
       alert('נשלח לינק עריכה לאימייל — נא לבדוק גם בספאם');
     } catch (err) {
-      console.error(err);
-      alert('שגיאה בשליחת לינק');
+      console.error('Magic link error:', err);
+      const msg = err?.message || err?.status || 'שגיאה בשליחת לינק';
+      alert(msg);
     }
   };
 

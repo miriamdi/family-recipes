@@ -67,37 +67,55 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
     try {
       const likedKey = 'liked_' + id;
       const currentlyLiked = !!localStorage.getItem(likedKey);
+      const REACTIONS_API = import.meta.env.VITE_REACTIONS_API_URL;
 
-      const { data: row } = await supabase
-        .from('reactions')
-        .select('*')
-        .eq('recipe_id', id)
-        .maybeSingle();
-
-      const currentLikes = row?.likes || 0;
-      const nextLikes = currentlyLiked
-        ? Math.max(0, currentLikes - 1)
-        : currentLikes + 1;
-
-      await supabase
-        .from('reactions')
-        .upsert(
-          { recipe_id: id, likes: nextLikes },
-          { onConflict: 'recipe_id' }
-        );
-
-      if (currentlyLiked) {
-        localStorage.removeItem(likedKey);
-      } else {
-        localStorage.setItem(likedKey, '1');
+      // 1) If there's an edge function configured, use it (secure)
+      if (REACTIONS_API) {
+        const action = currentlyLiked ? 'unlike' : 'like';
+        const res = await fetch(REACTIONS_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipe_id: id, action })
+        });
+        if (res.ok) {
+          const j = await res.json();
+          if (currentlyLiked) localStorage.removeItem(likedKey); else localStorage.setItem(likedKey, '1');
+          setReactions(prev => ({ ...prev, [id]: { likes: j.likes || 0, liked: !currentlyLiked } }));
+          return;
+        }
       }
 
-      setReactions(prev => ({
-        ...prev,
-        [id]: { likes: nextLikes, liked: !currentlyLiked }
-      }));
+      // 2) If Supabase client is available, use it
+      if (useSupabase && supabase) {
+        const { data: row, error: rowErr } = await supabase.from('reactions').select('*').eq('recipe_id', id).maybeSingle();
+        if (rowErr && rowErr.code !== 'PGRST116') { /* ignore not found */ }
+        const currentLikes = row?.likes || 0;
+        const nextLikes = currentlyLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
+        const upsert = { recipe_id: id, likes: nextLikes };
+        const { error: upErr } = await supabase.from('reactions').upsert(upsert, { onConflict: ['recipe_id'] });
+        if (upErr) throw upErr;
+        if (currentlyLiked) localStorage.removeItem(likedKey); else localStorage.setItem(likedKey, '1');
+        setReactions(prev => ({ ...prev, [id]: { likes: nextLikes, liked: !currentlyLiked } }));
+        return;
+      }
+
+      // 3) Fallback to localStorage-only behavior
+      const cur = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
+      const entry = cur[id] || { likes: 0 };
+      if (entry.liked) {
+        entry.likes = Math.max(0, entry.likes - 1);
+        entry.liked = false;
+      } else {
+        entry.likes = (entry.likes || 0) + 1;
+        entry.liked = true;
+      }
+      cur[id] = entry;
+      setReactions(prev => ({ ...prev, [id]: entry }));
+      localStorage.setItem('recipeReactions', JSON.stringify(cur));
+
     } catch (err) {
       console.error('Reaction error', err);
+      // show unobtrusive feedback in dev; avoid leaking details in prod
     }
   };
 
