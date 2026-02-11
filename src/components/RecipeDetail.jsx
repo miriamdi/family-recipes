@@ -3,10 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
+import { processImageForUpload } from '../lib/imageUtils';
 
 export default function RecipeDetail({ recipeId, onBack, user }) {
   const [allRecipes, setAllRecipes] = useState([]);
   const [message, setMessage] = useState('');
+  const [imageError, setImageError] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [reactions, setReactions] = useState({});
   const ADMIN_EMAIL = 'miriam995@gmail.com';
 
@@ -79,6 +82,9 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
     return <div>המתכון לא נמצא</div>;
   }
 
+  const isOwner = user && recipe.user_email === user.email;
+  const isAdmin = user && user.email === ADMIN_EMAIL;
+
   const formatIngredient = (ing) => {
     if (!ing) return '';
     if (typeof ing === 'string') return ing;
@@ -90,12 +96,14 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
     const isOwner = user && recipe.user_email === user.email;
     const isAdmin = user && user.email === ADMIN_EMAIL;
     if (!isOwner && !isAdmin) {
-      alert('אינך מורשה למחוק מתכון זה');
+      alert('איך לך הרשאה למחוק מתכון זה');
       return;
     }
 
     // Confirmation dialog
-    const confirm = window.confirm(`אתה בטוח שאתה רוצה למחוק את "${recipe.title}"?`);
+    const confirm = window.confirm(
+      `למחוק את המתכון "${recipe.title}"?\nאין אפשרות לשחזר לאחר מחיקה.`
+    );
     if (!confirm) return;
 
     if (useSupabase && supabase) {
@@ -172,67 +180,117 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
 
   const handleAddImage = (file) => {
     if (!file) return;
-    // Only allow owner or admin to add images
+
+    setImageError('');
     const isOwner = user && recipe.user_email === user.email;
     const isAdmin = user && user.email === ADMIN_EMAIL;
     if (!isOwner && !isAdmin) {
-      alert('אינך מורשה להוסיף תמונה');
+      setImageError('אינך מורשה להוסיף תמונה');
       return;
     }
 
-    const proceedWithDataUrl = async (data) => {
-      const updated = { ...recipe };
-      updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
-      if (updated.images.length >= 5) {
-        alert('מקסימום 5 תמונות');
-        return;
+    const currentImages = Array.isArray(recipe.images) ? recipe.images : [];
+    const legacyImage = recipe.image && !Array.isArray(recipe.images) ? [recipe.image] : [];
+    const totalImages = currentImages.length + legacyImage.length;
+
+    if (totalImages >= 6) {
+      setImageError('להגיע למקסימום 6 תמונות');
+      return;
+    }
+
+    const proceedWithDataUrl = async (dataUrl) => {
+      try {
+        const updated = { ...recipe };
+        updated.images = Array.isArray(updated.images) ? [...updated.images] : [];
+        if (updated.images.length >= 6) {
+          setImageError('להגיע למקסימום 6 תמונות');
+          return;
+        }
+        updated.images.push(dataUrl);
+        delete updated.image;
+        await saveUpdatedRecipe(updated);
+        setMessage('תמונה הוספה בהצלחה');
+        setTimeout(() => setMessage(''), 2000);
+      } catch (err) {
+        setImageError(`שגיאה בשמירה: ${err.message}`);
       }
-      updated.images.push(data);
-      delete updated.image;
-      await saveUpdatedRecipe(updated);
     };
 
-    // If Supabase is configured, upload to storage and save public URL
-    if (useSupabase && supabase) {
-      (async () => {
-        try {
-          const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
-          if (!file.type || !file.type.startsWith('image/')) {
-            alert('הקובץ חייב להיות תמונה');
-            return;
-          }
-          if (file.size > MAX_IMAGE_BYTES) {
-            alert('התמונה גדולה מדי (מקסימום 2MB)');
-            return;
-          }
-          const ext = (file.type.split('/')[1] || 'png');
-          const filename = `recipes/${recipe.id || 'temp'}-${Date.now()}.${ext}`;
-          const { error: upErr } = await supabase.storage.from('recipes-images').upload(filename, file, { upsert: true });
-          if (upErr) throw upErr;
-          const { data: urlData } = await supabase.storage.from('recipes-images').getPublicUrl(filename);
-          const publicUrl = urlData?.publicUrl || null;
-          if (!publicUrl) throw new Error('failed to obtain public url');
-          const updated = { ...recipe };
-          updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
-          if (updated.images.length >= 5) {
-            alert('מקסימום 5 תמונות');
-            return;
-          }
-          updated.images.push(publicUrl);
-          delete updated.image;
-          await saveUpdatedRecipe(updated);
-        } catch (err) {
-          console.error('Supabase image add failed', err);
-          alert('העלאת תמונה נכשלה');
-        }
-      })();
-      return;
-    }
+    // Process and upload image
+    (async () => {
+      setUploadingImage(true);
+      try {
+        const { blob: compressedBlob, error: processError } = await processImageForUpload(file);
 
-    // fallback: use data URL and local storage
-    const reader = new FileReader();
-    reader.onload = (ev) => proceedWithDataUrl(ev.target.result);
-    reader.readAsDataURL(file);
+        if (processError) {
+          setImageError(processError);
+          setUploadingImage(false);
+          return;
+        }
+
+        if (useSupabase && supabase) {
+          // Upload to Supabase storage
+          try {
+            const ext = file.type.split('/')[1] || 'jpeg';
+            const filename = `recipes/${recipe.id}-${Date.now()}.${ext}`;
+
+            const { error: upErr } = await supabase.storage
+              .from('recipes-images')
+              .upload(filename, compressedBlob, { upsert: true });
+
+            if (upErr) {
+              if (upErr.message.includes('not found')) {
+                setImageError('Bucket storage not configured. Please contact admin.');
+              } else if (upErr.message.includes('permission')) {
+                setImageError('Permission denied. You are not allowed to upload.');
+              } else {
+                setImageError(`Upload failed: ${upErr.message}`);
+              }
+              setUploadingImage(false);
+              return;
+            }
+
+            const { data: urlData } = await supabase.storage
+              .from('recipes-images')
+              .getPublicUrl(filename);
+
+            const publicUrl = urlData?.publicUrl;
+            if (!publicUrl) {
+              setImageError('Failed to get image URL after upload');
+              setUploadingImage(false);
+              return;
+            }
+
+            const updated = { ...recipe };
+            updated.images = Array.isArray(updated.images) ? [...updated.images] : [];
+            if (updated.images.length >= 6) {
+              setImageError('Reached maximum 6 images');
+              setUploadingImage(false);
+              return;
+            }
+            updated.images.push(publicUrl);
+            delete updated.image;
+            await saveUpdatedRecipe(updated);
+            setMessage('תמונה הוסיפה בהצלחה');
+            setTimeout(() => setMessage(''), 2000);
+          } catch (err) {
+            console.error('Supabase image upload failed:', err);
+            setImageError(`Upload error: ${err.message}`);
+          }
+        } else {
+          // Fallback: convert to data URL
+          const reader = new FileReader();
+          reader.onload = (ev) => proceedWithDataUrl(ev.target.result);
+          reader.onerror = () => setImageError('File read error');
+          reader.readAsDataURL(compressedBlob);
+        }
+      } catch (err) {
+        console.error('Image processing error:', err);
+        setImageError(`Processing error: ${err.message}`);
+      } finally {
+        setUploadingImage(false);
+      }
+    })();
   };
 
   const handleRemoveImage = (index) => {
@@ -335,17 +393,35 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
               recipe.image
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 10, flexWrap: 'wrap' }}>
             {Array.isArray(recipe.images) && recipe.images.length > 0 && recipe.images.map((img, idx) => (
               <div key={idx} style={{ position: 'relative' }}>
                 <img src={img} alt={`img-${idx}`} style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6 }} />
-                <button onClick={() => handleRemoveImage(idx)} style={{ position: 'absolute', top: -6, left: -6, background: '#e74c3c', color: 'white', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer' }}>×</button>
+                {(isOwner || isAdmin) && (
+                  <button onClick={() => handleRemoveImage(idx)} style={{ position: 'absolute', top: -6, left: -6, background: '#e74c3c', color: 'white', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 14 }}>×</button>
+                )}
               </div>
             ))}
-            <div>
-              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) handleAddImage(f); }} />
-            </div>
+            {(isOwner || isAdmin) && Array.isArray(recipe.images) && recipe.images.length < 6 && (
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) handleAddImage(f); }}
+                  disabled={uploadingImage}
+                  style={{ width: 80, height: 60, opacity: 0.5, cursor: uploadingImage ? 'not-allowed' : 'pointer' }}
+                  title={uploadingImage ? 'Uploading...' : 'Add image'}
+                />
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', fontSize: 24 }}>+</div>
+              </div>
+            )}
           </div>
+
+          {imageError && (
+            <div style={{ marginTop: 8, padding: 8, background: '#fee', color: '#c00', borderRadius: 4, fontSize: 13 }}>
+              {imageError}
+            </div>
+          )}
           <h1>{recipe.title}</h1>
           <p className="recipe-description">{recipe.description}</p>
         </div>
@@ -399,6 +475,25 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
           </ol>
         </div>
       </div>
+
+      {/* Full image gallery at bottom */}
+      {Array.isArray(recipe.images) && recipe.images.length > 1 && (
+        <div style={{ marginTop: 32, borderTop: '1px solid #ddd', paddingTop: 24 }}>
+          <h2>תמונות נוספות</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
+            {recipe.images.map((img, idx) => (
+              <img
+                key={idx}
+                src={img}
+                alt={`${recipe.title} - תמונה ${idx + 1}`}
+                style={{ width: '100%', height: 150, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }}
+                onClick={() => window.open(img, '_blank')}
+                title="Click to view full size"
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
