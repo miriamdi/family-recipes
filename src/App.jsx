@@ -49,7 +49,7 @@ function AuthControls({ user, setUser }) {
       {user ? (
         <>
           <span style={{ fontSize: 14 }}>{user.email}</span>
-          <button onClick={logout}>התנתק</button>
+          <button onClick={logout}>התנתקות</button>
         </>
       ) : (
         <button onClick={login}>התחברות באמצעות אימייל</button>
