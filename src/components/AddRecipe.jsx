@@ -28,6 +28,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
   const [filePreview, setFilePreview] = useState('');
   const [recipeFileName, setRecipeFileName] = useState('');
   const [authorFileName, setAuthorFileName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     // build category list from built-in recipes and user recipes
@@ -66,10 +67,11 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
     setIngredients(prev => prev.filter((_, idx) => idx !== i));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage('');
     setError('');
+
     if (!name || ingredients.length === 0 || !steps) {
       setError('בבקשה מלא את כל השדות הנדרשים');
       return;
@@ -96,15 +98,19 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
       steps: steps.split('\n').map(s => s.trim()).filter(Boolean)
     };
 
+    // If Supabase is configured, attempt to save there (requires authenticated + approved user)
     if (useSupabase && supabase) {
       if (!user) {
         setError('אנא התחבר קודם כדי לשלוח מתכון');
         return;
       }
-      (async () => {
-        try {
-          let imageUrl = null;
-          if (filePreview && filePreview.startsWith('data:')) {
+
+      setSubmitting(true);
+      try {
+        let imageUrl = null;
+
+        if (filePreview && filePreview.startsWith('data:')) {
+          try {
             const res = await fetch(filePreview);
             const blob = await res.blob();
             const ext = blob.type.split('/')[1] || 'png';
@@ -113,25 +119,45 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
             if (upErr) throw upErr;
             const { data: urlData } = supabase.storage.from('recipes-images').getPublicUrl(filename);
             imageUrl = urlData?.publicUrl || null;
+          } catch (uploadErr) {
+            console.error('Image upload failed', uploadErr);
+            setError('העלאת תמונה נכשלה — נסה שוב או השאר ללא תמונה');
+            setSubmitting(false);
+            return;
           }
-
-          const toInsert = { ...payload, images: imageUrl ? [imageUrl] : payload.images, user_id: user.id, user_email: user.email };
-          const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select();
-          if (insertErr) throw insertErr;
-          setMessage(hebrew.successMessage);
-          setTimeout(() => {
-            onRecipeAdded();
-            setShowForm(false);
-            setRecipeFileName('');
-            setAuthorFileName('');
-            setFilePreview('');
-            setMessage('');
-          }, 800);
-        } catch (err) {
-          console.error('Supabase insert error', err);
-          setError('שגיאה בשמירה בשרת');
         }
-      })();
+
+        const toInsert = { ...payload, images: imageUrl ? [imageUrl] : payload.images, user_id: user.id, user_email: user.email };
+        const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select();
+
+        if (insertErr) {
+          console.error('Supabase insert error', insertErr);
+          // Common cause: row-level security / not in approved_emails
+          if (insertErr?.status === 401 || insertErr?.status === 403 || /permission|authorization|forbidden/i.test(insertErr?.message || '')) {
+            setError('אין לך הרשאה להוסיף מתכון — ודא שהאימייל שלך נמצא בטבלת ה-approved_emails');
+          } else {
+            setError(insertErr?.message || 'שגיאה בשמירה בשרת');
+          }
+          setSubmitting(false);
+          return;
+        }
+
+        setMessage(hebrew.successMessage);
+        setTimeout(() => {
+          onRecipeAdded();
+          setShowForm(false);
+          setRecipeFileName('');
+          setAuthorFileName('');
+          setFilePreview('');
+          setMessage('');
+          setSubmitting(false);
+        }, 800);
+      } catch (err) {
+        console.error('Supabase insert unexpected error', err);
+        setError(err?.message || 'שגיאה בשמירה בשרת');
+        setSubmitting(false);
+      }
+
       return;
     }
 
@@ -308,7 +334,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
           {/* password field removed, Supabase auth in use */}
 
           <div className="form-buttons">
-            <button type="submit" className="submit-button">{hebrew.submit}</button>
+            <button type="submit" className="submit-button" disabled={submitting}>{submitting ? 'שולח…' : hebrew.submit}</button>
             <button type="button" className="cancel-button" onClick={() => { setShowForm(false); setError(''); setMessage(''); setRecipeFileName(''); setAuthorFileName(''); setFilePreview(''); }}>{hebrew.cancel}</button>
           </div>
         </form>
