@@ -22,6 +22,25 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
+
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ]; then
+            echo "::error::Missing required repository secrets: VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY"
+            echo "Set them in: Settings → Secrets and variables → Actions → New repository secret"
+            exit 1
+          fi
+
+      - name: Build environment debug (no secret values shown)
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          echo "node: $(node -v)"
+          echo "npm: $(npm -v)"
+          echo "VITE_SUPABASE_URL set: ${VITE_SUPABASE_URL:+yes}"
+          echo "VITE_SUPABASE_ANON_KEY set: ${VITE_SUPABASE_ANON_KEY:+yes}"
+
       - run: npm ci
       - run: npm run build
         env:
