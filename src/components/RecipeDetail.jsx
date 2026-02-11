@@ -11,6 +11,51 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
   const ADMIN_EMAIL = 'miriam995@gmail.com';
 
   useEffect(() => {
+    // If Supabase is configured, fetch the single recipe + reactions from the DB.
+    if (useSupabase && supabase) {
+      (async () => {
+        try {
+          const { data: dbRecipe, error: rErr } = await supabase
+            .from('recipes')
+            .select('*, profiles(display_name)')
+            .eq('id', recipeId)
+            .maybeSingle();
+
+          if (rErr) throw rErr;
+
+          if (dbRecipe) {
+            const normalized = { ...dbRecipe, prepTime: dbRecipe.prep_time, cookTime: dbRecipe.cook_time };
+            setAllRecipes([normalized]);
+          } else {
+            setAllRecipes([]);
+          }
+
+          const { data: rx, error: rxErr } = await supabase.from('reactions').select('*').eq('recipe_id', recipeId).maybeSingle();
+          if (rxErr && rxErr.code !== 'PGRST116') throw rxErr;
+          const reactionsMap = {};
+          if (rx) reactionsMap[recipeId] = { likes: rx.likes || 0, liked: Boolean(localStorage.getItem('liked_' + recipeId)) };
+          setReactions(reactionsMap);
+        } catch (err) {
+          console.error('Supabase fetch failed, falling back to local data', err);
+          // fallback to local behavior below
+          const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
+          const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
+          const seen = new Set();
+          const combined = [...userRecipes, ...recipes].filter(r => {
+            if (deleted.includes(r.id)) return false;
+            if (seen.has(r.id)) return false;
+            seen.add(r.id);
+            return true;
+          });
+          setAllRecipes(combined);
+          const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
+          setReactions(stored);
+        }
+      })();
+      return;
+    }
+
+    // Local fallback when Supabase is not configured
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
     // deduplicate: userRecipes override built-in recipes with same id
@@ -24,7 +69,7 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
     setAllRecipes(combined);
     const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
     setReactions(stored);
-  }, []);
+  }, [recipeId]);
 
   const recipe = allRecipes.find((r) => r.id === recipeId);
 
@@ -87,7 +132,22 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
     setTimeout(() => onBack(), 800);
   };
 
-  const saveUpdatedRecipe = (updated) => {
+  const saveUpdatedRecipe = async (updated) => {
+    // If Supabase is configured, persist the change to the DB
+    if (useSupabase && supabase) {
+      try {
+        const { data: dbRow, error } = await supabase.from('recipes').update(updated).eq('id', updated.id).select().single();
+        if (error) throw error;
+        const normalized = { ...dbRow, prepTime: dbRow.prep_time, cookTime: dbRow.cook_time };
+        setAllRecipes([normalized]);
+        return;
+      } catch (err) {
+        console.error('Failed to save updated recipe to Supabase, falling back to localStorage', err);
+        // fall through to localStorage fallback
+      }
+    }
+
+    // LocalStorage fallback
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
     const idx = userRecipes.findIndex(r => r.id === updated.id);
     if (idx !== -1) {
@@ -117,9 +177,8 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
       alert('אינך מורשה להוסיף תמונה');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const data = ev.target.result;
+
+    const proceedWithDataUrl = async (data) => {
       const updated = { ...recipe };
       updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
       if (updated.images.length >= 5) {
@@ -128,8 +187,49 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
       }
       updated.images.push(data);
       delete updated.image;
-      saveUpdatedRecipe(updated);
+      await saveUpdatedRecipe(updated);
     };
+
+    // If Supabase is configured, upload to storage and save public URL
+    if (useSupabase && supabase) {
+      (async () => {
+        try {
+          const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+          if (!file.type || !file.type.startsWith('image/')) {
+            alert('הקובץ חייב להיות תמונה');
+            return;
+          }
+          if (file.size > MAX_IMAGE_BYTES) {
+            alert('התמונה גדולה מדי (מקסימום 2MB)');
+            return;
+          }
+          const ext = (file.type.split('/')[1] || 'png');
+          const filename = `recipes/${recipe.id || 'temp'}-${Date.now()}.${ext}`;
+          const { error: upErr } = await supabase.storage.from('recipes-images').upload(filename, file, { upsert: true });
+          if (upErr) throw upErr;
+          const { data: urlData } = await supabase.storage.from('recipes-images').getPublicUrl(filename);
+          const publicUrl = urlData?.publicUrl || null;
+          if (!publicUrl) throw new Error('failed to obtain public url');
+          const updated = { ...recipe };
+          updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
+          if (updated.images.length >= 5) {
+            alert('מקסימום 5 תמונות');
+            return;
+          }
+          updated.images.push(publicUrl);
+          delete updated.image;
+          await saveUpdatedRecipe(updated);
+        } catch (err) {
+          console.error('Supabase image add failed', err);
+          alert('העלאת תמונה נכשלה');
+        }
+      })();
+      return;
+    }
+
+    // fallback: use data URL and local storage
+    const reader = new FileReader();
+    reader.onload = (ev) => proceedWithDataUrl(ev.target.result);
     reader.readAsDataURL(file);
   };
 

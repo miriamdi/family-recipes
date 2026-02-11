@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import recipes from '../data/recipes.json';
 import { hebrew } from '../data/hebrew';
 import AddRecipe from './AddRecipe';
 import './RecipeList.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 
 export default function RecipeList({ onSelectRecipe, user, displayName }) {
-  const [allRecipes, setAllRecipes] = useState(recipes);
+  // start empty — when Supabase is configured we'll load DB results; otherwise load local fallback
+  const [allRecipes, setAllRecipes] = useState([]);
   const [reactions, setReactions] = useState({});
   const [sortBy, setSortBy] = useState('category');
 
@@ -147,7 +147,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
         {user ? (
           <AddRecipe
             onRecipeAdded={handleRecipeAdded}
-            recipes={recipes}
+            recipes={allRecipes}
             user={user}
             displayName={displayName}
           />
