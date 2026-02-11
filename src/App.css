@@ -4,3 +4,28 @@
   background-color: #fafafa;
 }
 
+/* Supabase-missing banner (non-blocking) */
+.supabase-banner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff4e5;
+  color: #663c00;
+  border: 1px solid #ffd7a8;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin: 0.75rem 0 1rem 0;
+  font-size: 0.95rem;
+}
+.supabase-banner code { background: rgba(0,0,0,0.03); padding: 0.12rem 0.3rem; border-radius: 4px; }
+.supabase-banner__dismiss {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+  padding: 0.25rem;
+}
+.supabase-banner__dismiss:focus { outline: 2px solid rgba(0,0,0,0.12); border-radius: 4px; }

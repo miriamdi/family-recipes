@@ -8,7 +8,9 @@ import { getOrCreateProfile } from './lib/profile';
 function AuthControls({ user, setUser }) {
   const login = async () => {
     if (!useSupabase || !supabase) {
-      alert('Authentication is not configured for this deployment. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY and rebuild.');
+      // Supabase not configured: don't throw or show a blocking alert during CI/build.
+      // The App renders a persistent, dismissible banner explaining the fallback.
+      console.warn('Authentication not configured for this deployment — using local fallback.');
       return;
     }
 
@@ -67,6 +69,7 @@ function App() {
   const [selectedRecipeId, setSelectedRecipeId] = useState(null);
   const [user, setUser] = useState(null);
   const [displayName, setDisplayName] = useState(null);
+  const [showSupabaseBanner, setShowSupabaseBanner] = useState(true);
 
   useEffect(() => {
     document.documentElement.dir = 'rtl';
@@ -99,6 +102,18 @@ function App() {
 
   return (
     <div className="app">
+      {/* non-blocking banner when Supabase isn't configured */}
+      {(!useSupabase || !supabase) && showSupabaseBanner && (
+        <div className="supabase-banner" role="status" aria-live="polite">
+          <div>
+            <strong>Supabase not configured:</strong>
+            &nbsp;this deployment is using the local fallback (cloud features disabled).
+            Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> and rebuild to enable them.
+          </div>
+          <button className="supabase-banner__dismiss" onClick={() => setShowSupabaseBanner(false)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 12 }}>
         <AuthControls user={user} setUser={setUser} />
       </div>

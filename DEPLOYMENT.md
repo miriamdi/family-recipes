@@ -182,6 +182,11 @@ Edit `src/components/RecipeList.jsx` to add more details or change the layout.
 2. Make sure your Supabase `recipes` table contains valid rows (use the Table Editor) or validate any local test data stored in `localStorage`.
 3. Check that all recipe IDs are unique numbers
 
+#### CI / secrets behavior
+
+- CI builds will NOT fail if Supabase secrets are absent — the app builds and runs using a local fallback so PRs and feature-branch checks remain green.
+- Deployments to the `main` (production) branch require `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` repository secrets; the GitHub Actions workflow will block deploys on `main` if those are missing.
+
 ### Changes aren't showing up
 
 1. Wait 1-2 minutes for Vercel/GitHub to redeploy

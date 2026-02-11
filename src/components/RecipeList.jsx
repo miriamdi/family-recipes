@@ -19,19 +19,23 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
       if (useSupabase && supabase) {
         const { data: dbRecipes, error: rErr } = await supabase
           .from('recipes')
-          .select('*, profiles(display_name)')
+          .select('*')
           .order('created_at', { ascending: false });
 
-        if (rErr) throw rErr;
+        if (rErr) {
+          console.error('[loadRecipes] Supabase fetch error:', rErr.code, rErr.message);
+          throw rErr;
+        }
 
-        // Always prefer DB results when Supabase is configured (even empty)
-        console.debug('[loadRecipes] fetched from supabase:', (dbRecipes || []).length, 'rows', (dbRecipes || []).slice(0,5).map(r => r.id));
+        console.debug('[loadRecipes] fetched from supabase:', (dbRecipes || []).length, 'rows', (dbRecipes || []).slice(0,5).map(r => ({ id: r.id, title: r.title })));
 
         const { data: rx, error: rxErr } = await supabase
           .from('reactions')
           .select('*');
 
-        if (rxErr) throw rxErr;
+        if (rxErr) {
+          console.warn('[loadRecipes] Reactions fetch warning (non-blocking):', rxErr.message);
+        }
 
         const reactionsMap = {};
         (rx || []).forEach(row => {
@@ -54,11 +58,15 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
         return;
       }
     } catch (err) {
-      console.error('Error loading from Supabase', err);
-      // fall through to local fallback only on error
+      console.error('[loadRecipes] Error loading from Supabase:', err.message || err);
+      // If RLS is the issue, log it explicitly
+      if (err.code === 'PGRST001' || err.code === 'AUTH') {
+        console.error('[loadRecipes] RLS policy issue detected — ensure "allow select recipes" policy exists and is enabled.');
+      }
     }
 
-    setAllRecipes(recipes);
+    // Local fallback: empty list (not importing recipes.json—app uses localStorage or Supabase only)
+    setAllRecipes([]);
   };
 
   const handleRecipeAdded = (newRecipe, opts = { refetch: false }) => {

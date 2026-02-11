@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import recipes from '../data/recipes.json';
+
 import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 
 export default function RecipeDetail({ recipeId, onBack, user }) {
-  const [allRecipes, setAllRecipes] = useState(recipes);
+  const [allRecipes, setAllRecipes] = useState([]);
   const [message, setMessage] = useState('');
   const [reactions, setReactions] = useState({});
   const ADMIN_EMAIL = 'miriam995@gmail.com';
@@ -17,37 +17,43 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
         try {
           const { data: dbRecipe, error: rErr } = await supabase
             .from('recipes')
-            .select('*, profiles(display_name)')
+            .select('*')
             .eq('id', recipeId)
             .maybeSingle();
 
-          if (rErr) throw rErr;
-
-          if (dbRecipe) {
-            const normalized = { ...dbRecipe, prepTime: dbRecipe.prep_time, cookTime: dbRecipe.cook_time };
-            setAllRecipes([normalized]);
-          } else {
-            setAllRecipes([]);
+          if (rErr) {
+            console.error('[RecipeDetail] Fetch error:', rErr.code, rErr.message);
+            throw rErr;
           }
 
+          if (!dbRecipe) {
+            console.warn('[RecipeDetail] Recipe not found in Supabase:', recipeId);
+            setAllRecipes([]);
+            setReactions({});
+            return;
+          }
+
+          const normalized = { ...dbRecipe, prepTime: dbRecipe.prep_time, cookTime: dbRecipe.cook_time };
+          setAllRecipes([normalized]);
+          console.debug('[RecipeDetail] Recipe loaded:', { id: dbRecipe.id, title: dbRecipe.title });
+
           const { data: rx, error: rxErr } = await supabase.from('reactions').select('*').eq('recipe_id', recipeId).maybeSingle();
-          if (rxErr && rxErr.code !== 'PGRST116') throw rxErr;
+          if (rxErr && rxErr.code !== 'PGRST116') {
+            console.warn('[RecipeDetail] Reactions fetch warning (non-blocking):', rxErr.message);
+          }
           const reactionsMap = {};
           if (rx) reactionsMap[recipeId] = { likes: rx.likes || 0, liked: Boolean(localStorage.getItem('liked_' + recipeId)) };
           setReactions(reactionsMap);
         } catch (err) {
-          console.error('Supabase fetch failed, falling back to local data', err);
-          // fallback to local behavior below
+          console.error('[RecipeDetail] Supabase fetch failed:', err.message || err);
+          // fallback to local behavior
           const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-          const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-          const seen = new Set();
-          const combined = [...userRecipes, ...recipes].filter(r => {
-            if (deleted.includes(r.id)) return false;
-            if (seen.has(r.id)) return false;
-            seen.add(r.id);
-            return true;
-          });
-          setAllRecipes(combined);
+          const found = userRecipes.find(r => String(r.id) === String(recipeId));
+          if (found) {
+            setAllRecipes([found]);
+          } else {
+            setAllRecipes([]);
+          }
           const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
           setReactions(stored);
         }
@@ -57,16 +63,12 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
 
     // Local fallback when Supabase is not configured
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-    const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-    // deduplicate: userRecipes override built-in recipes with same id
-    const seen = new Set();
-    const combined = [...userRecipes, ...recipes].filter(r => {
-      if (deleted.includes(r.id)) return false;
-      if (seen.has(r.id)) return false;
-      seen.add(r.id);
-      return true;
-    });
-    setAllRecipes(combined);
+    const found = userRecipes.find(r => String(r.id) === String(recipeId));
+    if (found) {
+      setAllRecipes([found]);
+    } else {
+      setAllRecipes([]);
+    }
     const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
     setReactions(stored);
   }, [recipeId]);
@@ -157,9 +159,9 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
     }
     localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
     const deleted = JSON.parse(localStorage.getItem('deletedRecipes') || '[]');
-    // deduplicate: userRecipes override built-in recipes with same id
+    // deduplicate within userRecipes only
     const seen = new Set();
-    const combined = [...userRecipes, ...recipes].filter(r => {
+    const combined = userRecipes.filter(r => {
       if (deleted.includes(r.id)) return false;
       if (seen.has(r.id)) return false;
       seen.add(r.id);

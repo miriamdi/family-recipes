@@ -6,9 +6,10 @@ Steps to set up Supabase for this site
 
 3) Create a storage bucket named `recipes-images` and make it public (or configure appropriate policies).
 
-4) Run the SQL below in the Supabase SQL editor to create the `recipes` and `reactions` tables:
+4) Run the SQL below in the Supabase SQL editor to create the tables and enable Row Level Security policies:
 
--- create table for recipes (simple example)
+```sql
+-- Create recipes table
 create table if not exists public.recipes (
   id uuid primary key default gen_random_uuid(),
   title text,
@@ -30,43 +31,117 @@ create table if not exists public.recipes (
   created_at timestamptz default now()
 );
 
--- reactions table: one row per recipe_id with like counts
+-- Create reactions table
 create table if not exists public.reactions (
   recipe_id uuid primary key,
   likes int default 0
 );
 
--- approved emails table (family allowlist)
+-- Create approved_emails table (family allowlist)
 create table if not exists public.approved_emails (
   email text primary key
 );
 
--- Enable Row Level Security and policies
+-- Create profiles table (for author display names)
+create table if not exists public.profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique,
+  display_name text,
+  created_at timestamptz default now(),
+  foreign key (user_id) references auth.users(id) on delete cascade
+);
+
+-- Enable Row Level Security
 alter table public.recipes enable row level security;
 alter table public.reactions enable row level security;
+alter table public.approved_emails enable row level security;
+alter table public.profiles enable row level security;
 
--- Allow anyone to read recipes
-create policy "allow select recipes" on public.recipes for select using (true);
+-- ============ RECIPES POLICIES ============
+-- Allow ANYONE to read recipes (public access)
+drop policy if exists "recipe_read_public" on public.recipes;
+drop policy if exists "allow select recipes" on public.recipes;
+drop policy if exists "allow insert recipes for approved" on public.recipes;
+drop policy if exists "allow modify recipes for approved" on public.recipes;
 
--- Allow only authenticated, approved emails to insert recipes
-create policy "allow insert recipes for approved" on public.recipes
-  for insert to authenticated
+create policy "recipe_read_public" on public.recipes
+  for select
+  to public
+  using (true);
+
+-- Allow authenticated users in approved_emails to insert recipes
+create policy "recipe_insert_approved" on public.recipes
+  for insert
+  to authenticated
+  with check (auth.email() in (select email from public.approved_emails));
+
+-- Allow authenticated users to update their own recipes (if approved)
+create policy "recipe_update_own" on public.recipes
+  for update
+  to authenticated
   using (auth.email() in (select email from public.approved_emails))
   with check (auth.email() in (select email from public.approved_emails));
 
--- Allow only authenticated, approved emails to update or delete recipes
-create policy "allow modify recipes for approved" on public.recipes
-  for update, delete to authenticated
+-- Allow authenticated users to delete their own recipes (if approved)
+create policy "recipe_delete_own" on public.recipes
+  for delete
+  to authenticated
   using (auth.email() in (select email from public.approved_emails));
 
--- Reactions: allow only approved users to insert/upsert likes
-create policy "allow modify reactions for approved" on public.reactions
-  for insert, update to authenticated
-  using (auth.email() in (select email from public.approved_emails));
+-- ============ REACTIONS POLICIES ============
+-- Allow ANYONE to read reactions
+drop policy if exists "reaction_read_public" on public.reactions;
+drop policy if exists "allow modify reactions for approved" on public.reactions;
 
--- Note: you may want to add initial rows to `approved_emails` with family member emails.
--- Example:
--- insert into public.approved_emails (email) values ('you@example.com');
+create policy "reaction_read_public" on public.reactions
+  for select
+  to public
+  using (true);
+
+-- Allow authenticated approved users to insert reactions
+create policy "reaction_insert_approved" on public.reactions
+  for insert
+  to authenticated
+  with check (auth.email() in (select email from public.approved_emails));
+
+-- Allow authenticated approved users to update reactions
+create policy "reaction_update_approved" on public.reactions
+  for update
+  to authenticated
+  using (auth.email() in (select email from public.approved_emails))
+  with check (auth.email() in (select email from public.approved_emails));
+
+-- ============ APPROVED_EMAILS POLICIES ============
+-- Allow ANYONE to read approved_emails (needed for login/permission checks)
+drop policy if exists "approved_read_public" on public.approved_emails;
+
+create policy "approved_read_public" on public.approved_emails
+  for select
+  to public
+  using (true);
+
+-- ============ PROFILES POLICIES ============
+-- Allow ANYONE to read profiles (for author display names)
+drop policy if exists "profile_read_public" on public.profiles;
+
+create policy "profile_read_public" on public.profiles
+  for select
+  to public
+  using (true);
+
+-- Allow authenticated users to insert their own profile
+create policy "profile_insert_own" on public.profiles
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+-- Allow authenticated users to update their own profile
+create policy "profile_update_own" on public.profiles
+  for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+```
 
 5) Add the values to your local `.env.local` file (copy `.env.local.example`):
 

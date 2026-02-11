@@ -100,13 +100,14 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
 
     // If Supabase is configured, attempt to save there (requires authenticated + approved user)
     if (useSupabase && supabase) {
-      if (!user) {
-        setError('אנא התחבר קודם כדי לשלוח מתכון');
-        return;
-      }
-
-      setSubmitting(true);
       try {
+        const { data: user } = await supabase.auth.getUser();
+        if (!user?.user?.id) {
+          alert('אנא התחברו כדי להוסיף מתכון');
+          return;
+        }
+
+        setSubmitting(true);
         let imageUrl = null;
 
         if (filePreview && filePreview.startsWith('data:')) {
@@ -169,7 +170,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
 
     // fallback to localStorage when Supabase not configured
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-    const newId = Math.max(...recipes.map(r => r.id), ...userRecipes.map(r => r.id), 0) + 1;
+    const newId = Math.max(...userRecipes.map(r => r.id), 0) + 1;
     const newRecipe = { id: newId, ...payload };
     userRecipes.push(newRecipe);
     localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
