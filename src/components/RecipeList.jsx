@@ -24,6 +24,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
 
         if (rErr) throw rErr;
 
+        // Always prefer DB results when Supabase is configured (even empty)
         console.debug('[loadRecipes] fetched from supabase:', (dbRecipes || []).length, 'rows', (dbRecipes || []).slice(0,5).map(r => r.id));
 
         const { data: rx, error: rxErr } = await supabase
@@ -42,35 +43,42 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
 
         setReactions(reactionsMap);
 
-        if (dbRecipes && dbRecipes.length) {
-          const mapped = dbRecipes.map(r => ({
-            ...r,
-            id: r.id,
-            prepTime: r.prep_time,
-            cookTime: r.cook_time
-          }));
-          setAllRecipes(mapped);
-          return;
-        }
+        const mapped = (dbRecipes || []).map(r => ({
+          ...r,
+          id: r.id,
+          prepTime: r.prep_time,
+          cookTime: r.cook_time
+        }));
+
+        setAllRecipes(mapped);
+        return;
       }
     } catch (err) {
       console.error('Error loading from Supabase', err);
+      // fall through to local fallback only on error
     }
 
     setAllRecipes(recipes);
   };
 
-  const handleRecipeAdded = (newRecipe) => {
-    // If a normalized recipe is provided, optimistically prepend it to state so it's visible immediately
+  const handleRecipeAdded = (newRecipe, opts = { refetch: false }) => {
+    // optimistic UI: prepend inserted recipe returned from Supabase or local fallback
     if (newRecipe && newRecipe.id) {
       setAllRecipes(prev => {
         if (prev.find(r => String(r.id) === String(newRecipe.id))) return prev;
         return [{ ...newRecipe }, ...prev];
       });
+    }
+
+    // if requested, re-fetch from Supabase to reconcile eventual consistency / RLS behavior
+    if (opts.refetch && useSupabase && supabase) {
+      // small delay to allow DB to become consistent
+      setTimeout(() => loadRecipes(), 900);
       return;
     }
 
-    loadRecipes();
+    // otherwise ensure UI matches server by reloading once
+    if (!newRecipe) loadRecipes();
   };
 
   const handleReaction = async (e, id) => {

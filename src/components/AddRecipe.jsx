@@ -128,7 +128,8 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
         }
 
         const toInsert = { ...payload, images: imageUrl ? [imageUrl] : payload.images, user_id: user.id, user_email: user.email };
-        const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select();
+        // return the inserted row as a single object
+        const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select().single();
 
         if (insertErr) {
           console.error('Supabase insert error', insertErr);
@@ -142,13 +143,14 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
           return;
         }
 
-        // normalize inserted row (Supabase returns snake_case)
-        const inserted = Array.isArray(data) && data[0] ? data[0] : null;
+        // data is now a single inserted row
+        const inserted = data || null;
         const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
 
         setMessage(hebrew.successMessage);
         setTimeout(() => {
-          onRecipeAdded(uiRecipe);
+          // optimistic update + ask parent to re-fetch to reconcile server state
+          onRecipeAdded(uiRecipe, { refetch: true });
           setShowForm(false);
           setRecipeFileName('');
           setAuthorFileName('');
@@ -174,7 +176,8 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
 
     setMessage(hebrew.successMessage);
     setTimeout(() => {
-      onRecipeAdded(newRecipe);
+      // local fallback: optimistic add, no server refetch needed
+      onRecipeAdded(newRecipe, { refetch: false });
       setShowForm(false);
       setRecipeFileName('');
       setAuthorFileName('');
