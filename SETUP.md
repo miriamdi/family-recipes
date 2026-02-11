@@ -7,9 +7,9 @@ A simple, beautiful, mobile-friendly recipe website built with React + Vite. Per
 - 📱 **Mobile-Friendly**: Works perfect on phones, tablets, and computers
 - 🎨 **Clean Design**: Simple, modern interface that's easy to use
 - ⚡ **Fast**: Built with Vite for instant performance
-- 📝 **Easy to Update**: Add/edit recipes by editing a simple JSON file
+- 📝 **Easy to Update**: Add/edit recipes via the site UI or in Supabase (recommended)
 - 🚀 **Free to Deploy**: YouTube-style public link for anyone to access
-- 🎯 **No Database**: All recipes stored in a simple JSON file
+- 🎯 **Backend-ready**: Uses Supabase as the production data store; local dev falls back to `localStorage`
 
 ## 🚀 Quick Start
 
@@ -54,8 +54,7 @@ recipes-site/
 │   │   ├── RecipeList.css
 │   │   ├── RecipeDetail.jsx     ← Shows one recipe
 │   │   └── RecipeDetail.css
-│   ├── data/
-│   │   └── recipes.json         ← YOUR RECIPES HERE ⭐
+│   ├── data/                       ← (no bundled recipes; Supabase is the source of truth)
 │   ├── App.jsx                  ← Main app logic
 │   ├── App.css
 │   ├── index.css                ← Global styles
@@ -68,44 +67,20 @@ recipes-site/
 └── README.md                    ← This file
 ```
 
-**Key file: `src/data/recipes.json`** ← This is where your recipes live!
+**Where recipes live**
 
-## 📝 Adding Recipes
+- In production this project uses Supabase as the single source of truth: add and manage recipes in the `recipes` table (Table Editor) or via the site's Add Recipe UI (approved users only).
+- For local development the app keeps user-submitted recipes in `localStorage` (key: `userRecipes`) so you can iterate without a DB.
 
-Edit `src/data/recipes.json` and add recipes like this:
+## 📝 Adding Recipes (recommended)
 
-```json
-{
-  "id": 4,
-  "title": "Grandma's Apple Pie",
-  "description": "Warm, comfort food classic",
-  "prepTime": 20,
-  "cookTime": 45,
-  "servings": 8,
-  "difficulty": "Medium",
-  "image": "🥧",
-  "ingredients": [
-    "2 pie crusts",
-    "6 cups sliced apples",
-    "1/2 cup sugar",
-    "1 tsp cinnamon",
-    "2 tbsp butter"
-  ],
-  "steps": [
-    "Preheat oven to 375°F",
-    "Place apples in pie crust",
-    "Add sugar and cinnamon",
-    "Top with second crust",
-    "Bake for 45 minutes until golden"
-  ]
-}
-```
+1) In production: add recipes in your Supabase project
+   - Open Supabase → Table Editor → `public.recipes`
+   - Click **Insert row** and fill the fields (or use the site's **מתכון חדש** form)
 
-**Important:**
-- Each recipe needs a unique `id` (1, 2, 3, 4, etc.)
-- Keep commas between recipes and items
-- `image` should be an emoji (🍪 🍝 🥞 🍕, etc.)
-- Use exactly the same structure for all recipes
+2) For local development (no Supabase): use the Add Recipe form on the running site — it stores entries in `localStorage` so you can iterate quickly.
+
+If you need to seed the DB programmatically, use the SQL snippets in `SUPABASE_SETUP.md` or insert rows from the Supabase UI.
 
 ## 🎨 Customizing Colors & Look
 
@@ -135,7 +110,7 @@ Edit `src/index.css` and look for `font-family`. Change the font names to pick a
 
 **While `npm run dev` is running:**
 1. Browser automatically refreshes when you save changes
-2. Edit recipes in `src/data/recipes.json` and see updates instantly
+2. Add recipes using the site's **מתכון חדש** form (local dev stores entries in `localStorage`) or connect the app to a Supabase dev instance to test against the real DB
 3. Test on your phone: connect to `http://[YOUR_IP]:5173`
    - Find YOUR_IP by running: `ipconfig` (Windows) or `ifconfig` (Mac/Linux), look for IPv4 address
 
@@ -185,7 +160,7 @@ Then go to `http://localhost:3000`
 - Hard refresh browser (Ctrl+Shift+R)
 
 ### Recipe not showing
-- Check `src/data/recipes.json` for syntax errors (missing commas, quotes)
+- If using a local JSON/data export to seed a dev DB, validate it before inserting; otherwise use the Supabase Table Editor to add rows.
 - Use [jsonlint.com](https://jsonlint.com) to validate JSON
 - Make sure recipe `id` is unique
 
@@ -196,7 +171,7 @@ Then go to `http://localhost:3000`
 | `src/App.jsx` | Main app – handles showing recipe list vs detail view |
 | `src/components/RecipeList.jsx` | The homepage showing all recipes |
 | `src/components/RecipeDetail.jsx` | Individual recipe page |
-| `src/data/recipes.json` | **All your recipes stored here** |
+| `public/` or Supabase `recipes` table | **Production recipes: Supabase (preferred). Local test recipes: browser `localStorage`** |
 | `src/index.css` | Global styles (fonts, colors, etc.) |
 | `vite.config.js` | Vite build settings |
 | `package.json` | Project configuration and dependencies |

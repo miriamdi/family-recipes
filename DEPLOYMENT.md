@@ -48,14 +48,10 @@ Replace `YOUR_USERNAME` with your actual GitHub username.
 Your site is now public! Share the URL with your family.
 
 **To update recipes later:**
-1. Edit `src/data/recipes.json` on your computer
-2. Commit and push to GitHub:
-   ```bash
-   git add .
-   git commit -m "Added new recipe"
-   git push
-   ```
-3. Vercel automatically redeploys – done! ✨
+- Production (recommended): add or edit recipes in your Supabase project (Table Editor) or use the site's **מתכון חדש** form while signed in with an approved email. Changes in the DB appear immediately in the site.
+- Local development: use the Add Recipe form (entries are kept in `localStorage` under the key `userRecipes`) or seed your Supabase dev instance.
+
+> Note: `src/data/recipes.json` has been removed — the app uses Supabase as the single source of truth when configured.
 
 ---
 
@@ -131,53 +127,16 @@ Your site deploys automatically! It will be at `https://YOUR_USERNAME.github.io/
 
 ### For Both Vercel and GitHub Pages:
 
-**To add a new recipe:**
+**To add or edit recipes (production):**
 
-1. Open `src/data/recipes.json`
-2. Add a new recipe object (copy an existing one as a template):
+- Use the Supabase Table Editor: open your project → Table Editor → `public.recipes` → insert or update rows.
+- Or sign in on the site with an approved email and use the **מתכון חדש** form to add recipes.
 
-```json
-{
-  "id": 4,
-  "title": "My New Recipe",
-  "description": "Delicious family favorite",
-  "prepTime": 20,
-  "cookTime": 30,
-  "servings": 4,
-  "difficulty": "Easy",
-  "image": "🍕",
-  "ingredients": [
-    "Ingredient 1",
-    "Ingredient 2"
-  ],
-  "steps": [
-    "Step 1",
-    "Step 2"
-  ]
-}
-```
+**For local development (no Supabase):**
 
-3. Save the file
-4. Commit and push:
-   ```bash
-   git add src/data/recipes.json
-   git commit -m "Added [recipe name]"
-   git push
-   ```
+- Use the Add Recipe form in the running app — entries are stored in `localStorage` so you can test quickly without a DB.
 
-Your site updates automatically within 1-2 minutes! ✨
-
-### To Edit an Existing Recipe:
-
-1. Open `src/data/recipes.json`
-2. Find the recipe you want to edit
-3. Change the title, ingredients, steps, etc.
-4. Save, commit, and push:
-   ```bash
-   git add src/data/recipes.json
-   git commit -m "Updated [recipe name]"
-   git push
-   ```
+Your production site will reflect rows from Supabase immediately. ✨
 
 ---
 
@@ -220,7 +179,7 @@ Edit `src/components/RecipeList.jsx` to add more details or change the layout.
 ### Site is blank or shows errors
 
 1. Check the browser console (F12) for error messages
-2. Make sure `src/data/recipes.json` is valid JSON (no trailing commas)
+2. Make sure your Supabase `recipes` table contains valid rows (use the Table Editor) or validate any local test data stored in `localStorage`.
 3. Check that all recipe IDs are unique numbers
 
 ### Changes aren't showing up

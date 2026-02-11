@@ -42,34 +42,12 @@ Click this link: **http://localhost:5173**
 
 ## ✏️ Add Your First Recipe
 
-1. Open the folder in your text editor
-2. Go to: `src` → `data` → `recipes.json`
-3. You'll see 3 sample recipes
-4. Copy one recipe block and add yours:
+- To add a recipe in production, insert a row into the Supabase `public.recipes` table (Table Editor) or use the site's **מתכון חדש** form while authenticated with an approved email.
+- Local development: open the running site and use **מתכון חדש** — entries are stored in `localStorage` (key: `userRecipes`) so you can iterate without a DB.
 
-```json
-{
-  "id": 4,
-  "title": "Your Recipe Name",
-  "description": "Short description",
-  "prepTime": 15,
-  "cookTime": 30,
-  "servings": 4,
-  "difficulty": "Easy",
-  "image": "🍕",
-  "ingredients": [
-    "Ingredient 1",
-    "Ingredient 2"
-  ],
-  "steps": [
-    "Step 1",
-    "Step 2"
-  ]
-}
-```
-
-4. Save the file
-5. **Browser auto-refreshes** – your recipe appears! ✨
+Tips:
+- Use the Add Recipe form for quick testing (no build required).
+- To pre-seed production, add rows directly in Supabase or run SQL from `SUPABASE_SETUP.md`.
 
 ---
 
