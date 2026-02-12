@@ -79,9 +79,10 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
       }
 
       // Insert metadata into recipe_images table
-      const userId = user?.id;
-
-      if (!userId) {
+      // Get current authenticated user from Supabase (not from React state)
+      const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
+      
+      if (authErr || !authUser?.id) {
         setError('שגיאה בזיהוי משתמש');
         setUploading(false);
         e.target.value = '';
@@ -91,8 +92,8 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
       const { error: insertErr } = await supabase.from('recipe_images').insert({
         recipe_id: recipeId,
         image_url: publicUrl,
-        uploaded_by_user_id: userId,
-        uploaded_by_user_name: displayName || user.email
+        uploaded_by_user_id: authUser.id,
+        uploaded_by_user_name: displayName || authUser.email
       });
 
       if (insertErr) {
@@ -111,8 +112,8 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
       if (onImageAdded) {
         onImageAdded({
           image_url: publicUrl,
-          uploaded_by_user_name: displayName || user.email,
-          uploaded_by_user_id: userId
+          uploaded_by_user_name: displayName || authUser.email,
+          uploaded_by_user_id: authUser.id
         });
       }
 
@@ -150,7 +151,7 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
             fontSize: 14
           }}
         >
-          {uploading ? 'מעלה...' : '📸 הוסף תמונה'}
+          {uploading ? 'מעלה...' : 'הוספת  תמונה'}
         </button>
         {currentImageCount > 0 && (
           <span style={{ fontSize: 13, opacity: 0.7 }}>

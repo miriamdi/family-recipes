@@ -100,15 +100,15 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
     // If Supabase is configured, attempt to save there (requires authenticated + approved user)
     if (useSupabase && supabase) {
       try {
-        const { data: user } = await supabase.auth.getUser();
-        if (!user?.user?.id) {
+        const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
+        if (authErr || !authUser?.id) {
           alert('אנא התחברו כדי להוסיף מתכון');
           return;
         }
 
         setSubmitting(true);
 
-        const toInsert = { ...payload, user_id: user.id, user_email: user.email };
+        const toInsert = { ...payload, user_id: authUser.id, user_email: authUser.email };
         // return the inserted row as a single object
         const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select().single();
 
@@ -146,8 +146,8 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
               await supabase.from('recipe_images').insert({
                 recipe_id: inserted.id,
                 image_url: imageUrl,
-                uploaded_by_user_id: user.id,
-                uploaded_by_user_name: displayName || user.email
+                uploaded_by_user_id: authUser.id,
+                uploaded_by_user_name: displayName || authUser.email
               });
             }
           } catch (uploadErr) {
