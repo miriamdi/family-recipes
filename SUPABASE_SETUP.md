@@ -51,11 +51,24 @@ create table if not exists public.profiles (
   foreign key (user_id) references auth.users(id) on delete cascade
 );
 
+-- Create recipe_images table (for image metadata and uploader info)
+create table if not exists public.recipe_images (
+  id uuid primary key default gen_random_uuid(),
+  recipe_id uuid not null,
+  image_url text not null,
+  uploaded_by_user_id uuid not null,
+  uploaded_by_user_name text,
+  created_at timestamptz default now(),
+  foreign key (recipe_id) references public.recipes(id) on delete cascade,
+  foreign key (uploaded_by_user_id) references auth.users(id) on delete restrict
+);
+
 -- Enable Row Level Security
 alter table public.recipes enable row level security;
 alter table public.reactions enable row level security;
 alter table public.approved_emails enable row level security;
 alter table public.profiles enable row level security;
+alter table public.recipe_images enable row level security;
 
 -- ============ RECIPES POLICIES ============
 -- Allow ANYONE to read recipes (public access)
@@ -141,6 +154,37 @@ create policy "profile_update_own" on public.profiles
   to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- ============ RECIPE_IMAGES POLICIES ============
+-- Allow ANYONE to read recipe images (public access)
+drop policy if exists "recipe_images_read_public" on public.recipe_images;
+
+create policy "recipe_images_read_public" on public.recipe_images
+  for select
+  to public
+  using (true);
+
+-- Allow authenticated approved users to insert recipe images
+drop policy if exists "recipe_images_insert_approved" on public.recipe_images;
+
+create policy "recipe_images_insert_approved" on public.recipe_images
+  for insert
+  to authenticated
+  with check (
+    auth.uid() = uploaded_by_user_id
+    and auth.email() in (select email from public.approved_emails)
+  );
+
+-- Allow users to delete ONLY their own images, or admin can delete any image
+drop policy if exists "recipe_images_delete_own_or_admin" on public.recipe_images;
+
+create policy "recipe_images_delete_own_or_admin" on public.recipe_images
+  for delete
+  to authenticated
+  using (
+    auth.uid() = uploaded_by_user_id
+    or auth.email() = 'miriam995@gmail.com'
+  );
 ```
 
 5) Add the values to your local `.env.local` file (copy `.env.local.example`):

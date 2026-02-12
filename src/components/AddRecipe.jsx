@@ -3,7 +3,7 @@ import { hebrew } from '../data/hebrew';
 import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 
-export default function AddRecipe({ onRecipeAdded, recipes, user }) {
+export default function AddRecipe({ onRecipeAdded, recipes, user, displayName }) {
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
   const [image, setImage] = useState('');
@@ -83,7 +83,6 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
       title: name,
       description: '',
       image: typeof image === 'string' && image.startsWith('data:') ? null : image,
-      images: filePreview ? [filePreview] : null,
       category: finalCategory,
       prep_time: parseInt(prepTime) || 0,
       cook_time: parseInt(cookTime) || 0,
@@ -108,27 +107,8 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
         }
 
         setSubmitting(true);
-        let imageUrl = null;
 
-        if (filePreview && filePreview.startsWith('data:')) {
-          try {
-            const res = await fetch(filePreview);
-            const blob = await res.blob();
-            const ext = blob.type.split('/')[1] || 'png';
-            const filename = `recipes/${Date.now()}.${ext}`;
-            const { error: upErr } = await supabase.storage.from('recipes-images').upload(filename, blob, { upsert: true });
-            if (upErr) throw upErr;
-            const { data: urlData } = supabase.storage.from('recipes-images').getPublicUrl(filename);
-            imageUrl = urlData?.publicUrl || null;
-          } catch (uploadErr) {
-            console.error('Image upload failed', uploadErr);
-            setError('העלאת תמונה נכשלה — נסה שוב או השאר ללא תמונה');
-            setSubmitting(false);
-            return;
-          }
-        }
-
-        const toInsert = { ...payload, images: imageUrl ? [imageUrl] : payload.images, user_id: user.id, user_email: user.email };
+        const toInsert = { ...payload, user_id: user.id, user_email: user.email };
         // return the inserted row as a single object
         const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select().single();
 
@@ -146,6 +126,36 @@ export default function AddRecipe({ onRecipeAdded, recipes, user }) {
 
         // data is now a single inserted row
         const inserted = data || null;
+
+        // If there's an image preview, upload it to recipe_images table
+        if (filePreview && filePreview.startsWith('data:')) {
+          try {
+            const res = await fetch(filePreview);
+            const blob = await res.blob();
+            const ext = blob.type.split('/')[1] || 'png';
+            const filename = `recipes/${inserted.id}-${Date.now()}.${ext}`;
+
+            const { error: upErr } = await supabase.storage.from('recipes-images').upload(filename, blob, { upsert: true });
+            if (upErr) throw upErr;
+
+            const { data: urlData } = supabase.storage.from('recipes-images').getPublicUrl(filename);
+            const imageUrl = urlData?.publicUrl || null;
+
+            if (imageUrl) {
+              // Insert into recipe_images table
+              await supabase.from('recipe_images').insert({
+                recipe_id: inserted.id,
+                image_url: imageUrl,
+                uploaded_by_user_id: user.id,
+                uploaded_by_user_name: displayName || user.email
+              });
+            }
+          } catch (uploadErr) {
+            console.error('Image upload failed (non-blocking)', uploadErr);
+            // Don't fail the recipe creation if image upload fails
+          }
+        }
+
         const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
 
         setMessage(hebrew.successMessage);

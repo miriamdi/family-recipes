@@ -4,14 +4,17 @@ import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { processImageForUpload } from '../lib/imageUtils';
+import ImageUploader from './ImageUploader';
+import ImageGallery from './ImageGallery';
 
-export default function RecipeDetail({ recipeId, onBack, user }) {
+export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
   const [allRecipes, setAllRecipes] = useState([]);
+  const [recipeImages, setRecipeImages] = useState([]);
   const [message, setMessage] = useState('');
-  const [imageError, setImageError] = useState('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [reactions, setReactions] = useState({});
   const ADMIN_EMAIL = 'miriam995@gmail.com';
+  const MAX_IMAGES = 20;
 
   useEffect(() => {
     // If Supabase is configured, fetch the single recipe + reactions from the DB.
@@ -33,12 +36,26 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
             console.warn('[RecipeDetail] Recipe not found in Supabase:', recipeId);
             setAllRecipes([]);
             setReactions({});
+            setRecipeImages([]);
             return;
           }
 
           const normalized = { ...dbRecipe, prepTime: dbRecipe.prep_time, cookTime: dbRecipe.cook_time };
           setAllRecipes([normalized]);
           console.debug('[RecipeDetail] Recipe loaded:', { id: dbRecipe.id, title: dbRecipe.title });
+
+          // Fetch recipe images from the new recipe_images table
+          const { data: imgs, error: imgsErr } = await supabase
+            .from('recipe_images')
+            .select('*')
+            .eq('recipe_id', recipeId)
+            .order('created_at', { ascending: false });
+
+          if (imgsErr) {
+            console.warn('[RecipeDetail] Images fetch warning:', imgsErr.message);
+          } else {
+            setRecipeImages(imgs || []);
+          }
 
           const { data: rx, error: rxErr } = await supabase.from('reactions').select('*').eq('recipe_id', recipeId).maybeSingle();
           if (rxErr && rxErr.code !== 'PGRST116') {
@@ -59,6 +76,7 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
           }
           const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
           setReactions(stored);
+          setRecipeImages([]);
         }
       })();
       return;
@@ -74,6 +92,7 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
     }
     const stored = JSON.parse(localStorage.getItem('recipeReactions') || '{}');
     setReactions(stored);
+    setRecipeImages([]);
   }, [recipeId]);
 
   const recipe = allRecipes.find((r) => r.id === recipeId);
@@ -93,10 +112,8 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
 
   const handleDelete = () => {
     // Check if user can delete: owner OR admin
-    const isOwner = user && recipe.user_email === user.email;
-    const isAdmin = user && user.email === ADMIN_EMAIL;
     if (!isOwner && !isAdmin) {
-      alert('איך לך הרשאה למחוק מתכון זה');
+      alert('אין לך הרשאה למחוק מתכון זה');
       return;
     }
 
@@ -178,139 +195,27 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
     setAllRecipes(combined);
   };
 
-  const handleAddImage = (file) => {
-    if (!file) return;
+  const handleAddImageSuccess = () => {
+    setMessage('תמונה הוספה בהצלחה');
+    setTimeout(() => setMessage(''), 2000);
 
-    setImageError('');
-    const isOwner = user && recipe.user_email === user.email;
-    const isAdmin = user && user.email === ADMIN_EMAIL;
-    if (!isOwner && !isAdmin) {
-      setImageError('אינך מורשה להוסיף תמונה');
-      return;
+    // Refetch recipe images to keep in sync
+    if (useSupabase && supabase) {
+      (async () => {
+        const { data: imgs } = await supabase
+          .from('recipe_images')
+          .select('*')
+          .eq('recipe_id', recipeId)
+          .order('created_at', { ascending: false });
+        setRecipeImages(imgs || []);
+      })();
     }
-
-    const currentImages = Array.isArray(recipe.images) ? recipe.images : [];
-    const legacyImage = recipe.image && !Array.isArray(recipe.images) ? [recipe.image] : [];
-    const totalImages = currentImages.length + legacyImage.length;
-
-    if (totalImages >= 6) {
-      setImageError('להגיע למקסימום 6 תמונות');
-      return;
-    }
-
-    const proceedWithDataUrl = async (dataUrl) => {
-      try {
-        const updated = { ...recipe };
-        updated.images = Array.isArray(updated.images) ? [...updated.images] : [];
-        if (updated.images.length >= 6) {
-          setImageError('להגיע למקסימום 6 תמונות');
-          return;
-        }
-        updated.images.push(dataUrl);
-        delete updated.image;
-        await saveUpdatedRecipe(updated);
-        setMessage('תמונה הוספה בהצלחה');
-        setTimeout(() => setMessage(''), 2000);
-      } catch (err) {
-        setImageError(`שגיאה בשמירה: ${err.message}`);
-      }
-    };
-
-    // Process and upload image
-    (async () => {
-      setUploadingImage(true);
-      try {
-        const { blob: compressedBlob, error: processError } = await processImageForUpload(file);
-
-        if (processError) {
-          setImageError(processError);
-          setUploadingImage(false);
-          return;
-        }
-
-        if (useSupabase && supabase) {
-          // Upload to Supabase storage
-          try {
-            const ext = file.type.split('/')[1] || 'jpeg';
-            const filename = `recipes/${recipe.id}-${Date.now()}.${ext}`;
-
-            const { error: upErr } = await supabase.storage
-              .from('recipes-images')
-              .upload(filename, compressedBlob, { upsert: true });
-
-            if (upErr) {
-              if (upErr.message.includes('not found')) {
-                setImageError('Bucket storage not configured. Please contact admin.');
-              } else if (upErr.message.includes('permission')) {
-                setImageError('Permission denied. You are not allowed to upload.');
-              } else {
-                setImageError(`Upload failed: ${upErr.message}`);
-              }
-              setUploadingImage(false);
-              return;
-            }
-
-            const { data: urlData } = await supabase.storage
-              .from('recipes-images')
-              .getPublicUrl(filename);
-
-            const publicUrl = urlData?.publicUrl;
-            if (!publicUrl) {
-              setImageError('Failed to get image URL after upload');
-              setUploadingImage(false);
-              return;
-            }
-
-            const updated = { ...recipe };
-            updated.images = Array.isArray(updated.images) ? [...updated.images] : [];
-            if (updated.images.length >= 6) {
-              setImageError('Reached maximum 6 images');
-              setUploadingImage(false);
-              return;
-            }
-            updated.images.push(publicUrl);
-            delete updated.image;
-            await saveUpdatedRecipe(updated);
-            setMessage('תמונה הוסיפה בהצלחה');
-            setTimeout(() => setMessage(''), 2000);
-          } catch (err) {
-            console.error('Supabase image upload failed:', err);
-            setImageError(`Upload error: ${err.message}`);
-          }
-        } else {
-          // Fallback: convert to data URL
-          const reader = new FileReader();
-          reader.onload = (ev) => proceedWithDataUrl(ev.target.result);
-          reader.onerror = () => setImageError('File read error');
-          reader.readAsDataURL(compressedBlob);
-        }
-      } catch (err) {
-        console.error('Image processing error:', err);
-        setImageError(`Processing error: ${err.message}`);
-      } finally {
-        setUploadingImage(false);
-      }
-    })();
   };
 
-  const handleRemoveImage = (index) => {
-    // Only allow owner or admin to remove images
-    const isOwner = user && recipe.user_email === user.email;
-    const isAdmin = user && user.email === ADMIN_EMAIL;
-    if (!isOwner && !isAdmin) {
-      alert('אינך מורשה להסיר תמונה');
-      return;
-    }
-    if (!window.confirm('האם אתה בטוח שברצונך להסיר תמונה זו?')) return;
-    const updated = { ...recipe };
-    updated.images = Array.isArray(updated.images) ? [...updated.images] : (updated.image ? [updated.image] : []);
-    updated.images.splice(index, 1);
-    if (updated.images.length === 0 && recipe.image) {
-      // keep legacy image if it existed
-      updated.image = recipe.image;
-      delete updated.images;
-    }
-    saveUpdatedRecipe(updated);
+  const handleImageDeleted = (deletedImageId) => {
+    setRecipeImages(prev => prev.filter(img => img.id !== deletedImageId));
+    setMessage('תמונה נמחקה בהצלחה');
+    setTimeout(() => setMessage(''), 2000);
   };
 
   const saveReactions = (next) => {
@@ -385,43 +290,15 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
       <div className="recipe-header">
         <div className="recipe-title-section">
           <div className="large-image">
-            {Array.isArray(recipe.images) && recipe.images[0] ? (
-              <img src={recipe.images[0]} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
-            ) : (typeof recipe.image === 'string' && recipe.image.startsWith('data:') ? (
+            {recipeImages.length > 0 ? (
+              <img src={recipeImages[0].image_url} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
+            ) : recipe.image && typeof recipe.image === 'string' && !recipe.image.startsWith('data:') && recipe.image.length > 2 ? (
               <img src={recipe.image} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
             ) : (
-              recipe.image
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', marginTop: 10, flexWrap: 'wrap' }}>
-            {Array.isArray(recipe.images) && recipe.images.length > 0 && recipe.images.map((img, idx) => (
-              <div key={idx} style={{ position: 'relative' }}>
-                <img src={img} alt={`img-${idx}`} style={{ width: 80, height: 60, objectFit: 'cover', borderRadius: 6 }} />
-                {(isOwner || isAdmin) && (
-                  <button onClick={() => handleRemoveImage(idx)} style={{ position: 'absolute', top: -6, left: -6, background: '#e74c3c', color: 'white', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 14 }}>×</button>
-                )}
-              </div>
-            ))}
-            {(isOwner || isAdmin) && Array.isArray(recipe.images) && recipe.images.length < 6 && (
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => { const f = e.target.files && e.target.files[0]; if (f) handleAddImage(f); }}
-                  disabled={uploadingImage}
-                  style={{ width: 80, height: 60, opacity: 0.5, cursor: uploadingImage ? 'not-allowed' : 'pointer' }}
-                  title={uploadingImage ? 'Uploading...' : 'Add image'}
-                />
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none', fontSize: 24 }}>+</div>
-              </div>
+              <div style={{ fontSize: 100 }}>{recipe.image || '🍽️'}</div>
             )}
           </div>
 
-          {imageError && (
-            <div style={{ marginTop: 8, padding: 8, background: '#fee', color: '#c00', borderRadius: 4, fontSize: 13 }}>
-              {imageError}
-            </div>
-          )}
           <h1>{recipe.title}</h1>
           <p className="recipe-description">{recipe.description}</p>
         </div>
@@ -477,21 +354,26 @@ export default function RecipeDetail({ recipeId, onBack, user }) {
       </div>
 
       {/* Full image gallery at bottom */}
-      {Array.isArray(recipe.images) && recipe.images.length > 1 && (
+      <ImageGallery
+        images={recipeImages}
+        recipeId={recipeId}
+        user={user}
+        onImageDeleted={handleImageDeleted}
+      />
+
+      {/* Image upload section */}
+      {(isOwner || isAdmin) && (
         <div style={{ marginTop: 32, borderTop: '1px solid #ddd', paddingTop: 24 }}>
-          <h2>תמונות נוספות</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
-            {recipe.images.map((img, idx) => (
-              <img
-                key={idx}
-                src={img}
-                alt={`${recipe.title} - תמונה ${idx + 1}`}
-                style={{ width: '100%', height: 150, objectFit: 'cover', borderRadius: 8, cursor: 'pointer' }}
-                onClick={() => window.open(img, '_blank')}
-                title="Click to view full size"
-              />
-            ))}
-          </div>
+          <h3 style={{ marginBottom: 16 }}>הכנת את המתכון? כאן אפשר להשוויץ עם תמונה 📸</h3>
+          <ImageUploader
+            recipeId={recipeId}
+            currentImageCount={recipeImages.length}
+            maxImages={MAX_IMAGES}
+            onImageAdded={handleAddImageSuccess}
+            user={user}
+            displayName={displayName}
+            disabled={recipeImages.length >= MAX_IMAGES}
+          />
         </div>
       )}
     </div>

@@ -3,11 +3,11 @@ import { hebrew } from '../data/hebrew';
 import AddRecipe from './AddRecipe';
 import './RecipeList.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
-import { getRandomImage } from '../lib/imageUtils';
 
 export default function RecipeList({ onSelectRecipe, user, displayName }) {
   // start empty — when Supabase is configured we'll load DB results; otherwise load local fallback
   const [allRecipes, setAllRecipes] = useState([]);
+  const [recipeImages, setRecipeImages] = useState({});  // recipe_id -> array of images
   const [reactions, setReactions] = useState({});
   const [sortBy, setSortBy] = useState('category');
 
@@ -29,6 +29,26 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
         }
 
         console.debug('[loadRecipes] fetched from supabase:', (dbRecipes || []).length, 'rows', (dbRecipes || []).slice(0,5).map(r => ({ id: r.id, title: r.title })));
+
+        // Fetch all recipe images
+        const { data: allImages, error: imgsErr } = await supabase
+          .from('recipe_images')
+          .select('recipe_id, id, image_url, uploaded_by_user_name');
+
+        if (imgsErr) {
+          console.warn('[loadRecipes] Recipe images fetch warning:', imgsErr.message);
+        }
+
+        // Group images by recipe_id
+        const imagesMap = {};
+        (allImages || []).forEach(img => {
+          if (!imagesMap[img.recipe_id]) {
+            imagesMap[img.recipe_id] = [];
+          }
+          imagesMap[img.recipe_id].push(img);
+        });
+
+        setRecipeImages(imagesMap);
 
         const { data: rx, error: rxErr } = await supabase
           .from('reactions')
@@ -68,6 +88,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
 
     // Local fallback: empty list (not importing recipes.json—app uses localStorage or Supabase only)
     setAllRecipes([]);
+    setRecipeImages({});
   };
 
   const handleRecipeAdded = (newRecipe, opts = { refetch: false }) => {
@@ -147,6 +168,15 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
     }
   };
 
+  const getStableRandomImage = (images, recipeId) => {
+    // Use recipe ID as a seed for stable-ish random selection
+    // This way the same recipe always shows the same preview image on the same page load
+    if (!Array.isArray(images) || images.length === 0) return null;
+    const hash = recipeId.split('').reduce((h, c) => ((h << 5) - h) + c.charCodeAt(0), 0);
+    const index = Math.abs(hash) % images.length;
+    return images[index];
+  };
+
   return (
     <div className="recipe-list">
       <h1>{hebrew.title}</h1>
@@ -179,8 +209,10 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
       <div className="recipes-grid">
         {allRecipes.map((recipe) => {
           const r = reactions[recipe.id] || { likes: 0 };
-          // Show random image from recipe if available, fallback to legacy image field
-          const previewImage = getRandomImage(recipe.images) || recipe.image;
+          // Get preview image from recipe_images table
+          const images = recipeImages[recipe.id] || [];
+          const previewImage = images.length > 0 ? getStableRandomImage(images, recipe.id) : null;
+          const legacyEmoji = recipe.image && typeof recipe.image === 'string' && recipe.image.length < 3 ? recipe.image : null;
 
           return (
             <div
@@ -188,19 +220,31 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
               className="recipe-card"
               onClick={() => onSelectRecipe(recipe.id)}
             >
-              {previewImage && (
-                <div style={{ marginBottom: 8, height: 120, overflow: 'hidden', borderRadius: '8px 8px 0 0' }}>
-                  {typeof previewImage === 'string' && previewImage.startsWith('data:') ? (
-                    <img src={previewImage} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : typeof previewImage === 'string' && previewImage.length < 3 ? (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '64px', background: '#f5f5f5' }}>
-                      {previewImage}
+              {previewImage ? (
+                <div style={{ marginBottom: 8, height: 120, overflow: 'hidden', borderRadius: '8px 8px 0 0', position: 'relative' }}>
+                  <img src={previewImage.image_url} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  {/* Show uploader name on image */}
+                  {previewImage.uploaded_by_user_name && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      background: 'rgba(0, 0, 0, 0.5)',
+                      color: 'white',
+                      padding: '2px 6px',
+                      fontSize: 11,
+                      textAlign: 'right'
+                    }}>
+                      {previewImage.uploaded_by_user_name}
                     </div>
-                  ) : (
-                    <img src={previewImage} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   )}
                 </div>
-              )}
+              ) : legacyEmoji ? (
+                <div style={{ marginBottom: 8, height: 120, overflow: 'hidden', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '64px', background: '#f5f5f5' }}>
+                  {legacyEmoji}
+                </div>
+              ) : null}
               <h3>{recipe.title}</h3>
               <p className="recipe-description">{recipe.description}</p>
 
