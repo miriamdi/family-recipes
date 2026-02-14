@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, useParams } from 'react-router-dom';
 import App from './App';
 import RecipeList from './components/RecipeList';
 import RecipeDetail from './components/RecipeDetail';
+import Proposals from './components/Proposals';
 
 function RecipeDetailWithParams(props) {
   const { id } = useParams();
@@ -16,6 +17,7 @@ export default function AppRouter(props) {
         <Routes>
           <Route path="/" element={<RecipeList {...props} />} />
           <Route path="/recipe/:id" element={<RecipeDetailWithParams {...props} />} />
+          <Route path="/proposals" element={<Proposals {...props} />} />
         </Routes>
       </App>
     </HashRouter>
