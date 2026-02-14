@@ -33,7 +33,9 @@ const GENERIC_FOOD_EMOJIS = [
 ];
 
 function sanitizeText(text = '') {
-  return String(text || '').toLowerCase().replace(/[^\p{L}\p{N}\s]+/gu, ' ').trim();
+  // Keep implementation CI-safe: allow ASCII letters/digits and Hebrew range, normalize punctuation to spaces.
+  // Avoid Unicode property escapes (\p{...}) to stay compatible with older/tooling JS parsers.
+  return String(text || '').toLowerCase().replace(/[^0-9a-z\u0590-\u05FF\s]+/g, ' ').trim();
 }
 
 // Very small internal "translation" helper: map a few common Hebrew food-words to English tokens.
@@ -112,4 +114,30 @@ function randomFoodEmoji() {
   return GENERIC_FOOD_EMOJIS[Math.floor(Math.random() * GENERIC_FOOD_EMOJIS.length)];
 }
 
-export default { getEmojiForName, translateToEnglishInternal };
+// Known emojis we generate from (used for simple, deterministic checks).
+const KNOWN_EMOJIS = Array.from(new Set([
+  ...GENERIC_FOOD_EMOJIS,
+  ...FOOD_EMOJI_CATALOG.map(e => e.emoji)
+])).sort((a, b) => b.length - a.length); // longer first to match ZWJ/VS sequences first
+
+// Extract a leading emoji from a string if it matches one of our KNOWN_EMOJIS.
+// Returns the emoji string or null. (NO use of Unicode property escapes)
+export function extractLeadingEmoji(text = '') {
+  if (!text || typeof text !== 'string') return null;
+  const s = text.trimStart();
+  for (const emoji of KNOWN_EMOJIS) {
+    if (s.startsWith(emoji)) return emoji;
+  }
+  return null;
+}
+
+// Remove a leading emoji from the string if it matches our known list; otherwise return unchanged.
+export function stripLeadingEmoji(text = '') {
+  if (!text || typeof text !== 'string') return text;
+  const s = text.trimStart();
+  const e = extractLeadingEmoji(s);
+  if (!e) return text;
+  return s.slice(e.length).trimStart();
+}
+
+export default { getEmojiForName, translateToEnglishInternal, extractLeadingEmoji, stripLeadingEmoji };

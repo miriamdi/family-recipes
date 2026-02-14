@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { hebrew } from '../data/hebrew';
 import AddRecipe from './AddRecipe';
 import './RecipeList.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
+import { extractLeadingEmoji } from '../lib/emojiUtils';
 
 export default function RecipeList({ onSelectRecipe, user, displayName }) {
   // start empty — when Supabase is configured we'll load DB results; otherwise load local fallback
@@ -212,13 +214,15 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
           // Get preview image from recipe_images table
           const images = recipeImages[recipe.id] || [];
           const previewImage = images.length > 0 ? getStableRandomImage(images, recipe.id) : null;
-          const legacyEmoji = recipe.image && typeof recipe.image === 'string' && recipe.image.length < 3 ? recipe.image : null;
+          // Prefer emoji from the title (new stored format). Fallback to legacy `recipe.image` emoji when present.
+          const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
 
           return (
-            <div
+            <Link
+              to={`/recipe/${recipe.id}`}
               key={recipe.id}
               className="recipe-card"
-              onClick={() => onSelectRecipe(recipe.id)}
+              style={{ textDecoration: 'none', color: 'inherit' }}
             >
               {previewImage ? (
                 <div style={{ marginBottom: 8, height: 120, overflow: 'hidden', borderRadius: '8px 8px 0 0', position: 'relative' }}>
@@ -240,9 +244,9 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
                     </div>
                   )}
                 </div>
-              ) : legacyEmoji ? (
+              ) : titleEmoji ? (
                 <div style={{ marginBottom: 8, height: 120, overflow: 'hidden', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '64px', background: '#f5f5f5' }}>
-                  {legacyEmoji}
+                  {titleEmoji}
                 </div>
               ) : null}
               <h3>{recipe.title}</h3>
@@ -273,7 +277,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
                   👍 {r.likes || 0}
                 </button>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>

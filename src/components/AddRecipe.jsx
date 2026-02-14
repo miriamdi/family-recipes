@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { hebrew } from '../data/hebrew';
 import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
-import { getEmojiForName } from '../lib/emojiUtils';
+import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
 
 export default function AddRecipe({ onRecipeAdded, recipes, user, displayName }) {
   const [showForm, setShowForm] = useState(false);
@@ -124,10 +124,20 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
     const difficultyMap = { 'קל': 'easy', 'בינוני': 'medium', 'קשה': 'hard' };
     const englishDifficulty = difficultyMap[difficulty] || difficulty;
 
+    // Ensure the emoji becomes part of the title string when saving (not an <img> or separate field).
+    // Strip any known leading emoji (from our generator) first, then prepend the generated emoji exactly once.
+    const trimmedName = recipeName.trim();
+    const nameWithoutKnownEmoji = stripLeadingEmoji(trimmedName);
+    const emojiToPrepend = image || '';
+    const finalTitle = nameWithoutKnownEmoji.startsWith(emojiToPrepend) || nameWithoutKnownEmoji.startsWith((emojiToPrepend + ' '))
+      ? nameWithoutKnownEmoji
+      : (emojiToPrepend ? `${emojiToPrepend} ${nameWithoutKnownEmoji}` : nameWithoutKnownEmoji);
+
     const payload = {
-      title: recipeName,
+      title: finalTitle,
       description: '',
-      image: image || '🍽️',
+      // Do NOT store the emoji as an image URL. Leave `image` empty by default (emoji is in the title).
+      image: '',
       category: finalCategory,
       prep_time: parseInt(workTimeMinutes),
       cook_time: parseInt(totalTimeMinutes),

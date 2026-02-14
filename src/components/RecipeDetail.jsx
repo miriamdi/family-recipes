@@ -1,13 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { processImageForUpload } from '../lib/imageUtils';
+import { extractLeadingEmoji } from '../lib/emojiUtils';
 import ImageUploader from './ImageUploader';
 import ImageGallery from './ImageGallery';
 
-export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
+export default function RecipeDetail({ recipeId, user, displayName }) {
   const [allRecipes, setAllRecipes] = useState([]);
   const [recipeImages, setRecipeImages] = useState([]);
   const [message, setMessage] = useState('');
@@ -15,6 +18,7 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
   const [reactions, setReactions] = useState({});
   const ADMIN_EMAIL = 'miriam995@gmail.com';
   const MAX_IMAGES = 20;
+  const navigate = useNavigate();
 
   useEffect(() => {
     // If Supabase is configured, fetch the single recipe + reactions from the DB.
@@ -177,7 +181,7 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
           const { error } = await supabase.from('recipes').delete().eq('id', recipe.id);
           if (error) throw error;
           setMessage(hebrew.deleteSuccess);
-          setTimeout(() => onBack(), 800);
+          setTimeout(() => navigate('/'), 800);
         } catch (err) {
           console.error('Delete error', err);
           alert('שגיאה במחיקה');
@@ -193,7 +197,7 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
       userRecipes.splice(idx, 1);
       localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
       setMessage(hebrew.deleteSuccess);
-      setTimeout(() => onBack(), 800);
+      setTimeout(() => navigate('/'), 800);
       return;
     }
 
@@ -204,7 +208,7 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
       localStorage.setItem('deletedRecipes', JSON.stringify(deleted));
     }
     setMessage(hebrew.deleteSuccess);
-    setTimeout(() => onBack(), 800);
+    setTimeout(() => navigate('/'), 800);
   };
 
   const saveUpdatedRecipe = async (updated) => {
@@ -324,10 +328,19 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
     }
   };
 
+  // Helper: detect if a string looks like an image URL (Supabase public URL, http(s), data:, or common image extensions)
+  const isImageUrl = (s) => {
+    if (!s || typeof s !== 'string') return false;
+    // Accept absolute http(s), data: URIs, Supabase public-storage paths, or common image extensions.
+    return /^(https?:\/\/)/.test(s) || s.startsWith('data:') || s.startsWith('/storage/v1/object/public/') || /\.(jpg|jpeg|png|gif|webp|avif|svg)(\?.*)?$/i.test(s);
+  };
+
+  // Prefer emoji from the recipe title (new behavior). Fallback to legacy `recipe.image` if it contains a short emoji.
+  const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
+
   return (
     <div className="recipe-detail">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button className="back-button" onClick={onBack}>{hebrew.backToRecipes} ←</button>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         {user && (recipe.user_email === user.email || user.email === ADMIN_EMAIL) && (
           <button className="delete-button" onClick={handleDelete}>{hebrew.deleteRecipe}</button>
         )}
@@ -340,10 +353,12 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
           <div className="large-image">
             {recipeImages.length > 0 ? (
               <img src={recipeImages[0].image_url} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
-            ) : recipe.image && typeof recipe.image === 'string' && !recipe.image.startsWith('data:') && recipe.image.length > 2 ? (
+            ) : isImageUrl(recipe.image) ? (
+              // Only render <img> when the field clearly contains an image URL — never for emoji
               <img src={recipe.image} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
             ) : (
-              <div style={{ fontSize: 100 }}>{recipe.image || '🍽️'}</div>
+              // Render emoji (from title or legacy image field) as plain text — never as an <img>
+              <div style={{ fontSize: 100 }}>{titleEmoji || '🍽️'}</div>
             )}
           </div>
 

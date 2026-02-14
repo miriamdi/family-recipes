@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import RecipeList from './components/RecipeList';
 import RecipeDetail from './components/RecipeDetail';
 import './App.css';
@@ -65,8 +65,8 @@ function AuthControls({ user, setUser }) {
   );
 }
 
-function App() {
-  const [selectedRecipeId, setSelectedRecipeId] = useState(null);
+
+function App({ children }) {
   const [user, setUser] = useState(null);
   const [displayName, setDisplayName] = useState(null);
   const [showSupabaseBanner, setShowSupabaseBanner] = useState(true);
@@ -118,19 +118,10 @@ function App() {
         <AuthControls user={user} setUser={setUser} />
       </div>
 
-      {selectedRecipeId === null ? (
-        <RecipeList
-          onSelectRecipe={setSelectedRecipeId}
-          user={user}
-          displayName={displayName}
-        />
-      ) : (
-        <RecipeDetail
-          recipeId={selectedRecipeId}
-          onBack={() => setSelectedRecipeId(null)}
-          user={user}
-          displayName={displayName}
-        />
+      {React.Children.map(children, child =>
+        React.isValidElement(child)
+          ? React.cloneElement(child, { user, displayName })
+          : child
       )}
     </div>
   );
