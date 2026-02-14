@@ -354,15 +354,14 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
             {recipeImages.length > 0 ? (
               <img src={recipeImages[0].image_url} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
             ) : isImageUrl(recipe.image) ? (
-              // Only render <img> when the field clearly contains an image URL — never for emoji
               <img src={recipe.image} alt={recipe.title} style={{ maxWidth: 300, borderRadius: 10 }} />
-            ) : (
-              // Render emoji (from title or legacy image field) as plain text — never as an <img>
-              <div style={{ fontSize: 100 }}>{titleEmoji || '🍽️'}</div>
-            )}
+            ) : null}
           </div>
 
-          <h1>{recipe.title}</h1>
+          <h1>
+            <span style={{ marginRight: 8 }}>{titleEmoji || '🍽️'}</span>
+            {recipe.title.replace(titleEmoji, '').trim()}
+          </h1>
           <p className="recipe-description">{recipe.description}</p>
         </div>
       </div>
