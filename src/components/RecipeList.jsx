@@ -6,7 +6,7 @@ import './RecipeList.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { extractLeadingEmoji } from '../lib/emojiUtils';
 
-export default function RecipeList({ onSelectRecipe, user, displayName }) {
+export default function RecipeList({ onSelectRecipe, user, displayName, userLoading }) {
   // start empty — when Supabase is configured we'll load DB results; otherwise load local fallback
   const [allRecipes, setAllRecipes] = useState([]);
   const [recipeImages, setRecipeImages] = useState({});  // recipe_id -> array of images
@@ -181,16 +181,24 @@ export default function RecipeList({ onSelectRecipe, user, displayName }) {
 
   return (
     <div className="recipe-list">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <Link to="/proposals" style={{ fontWeight: 'bold', color: '#2d7ff9', textDecoration: 'underline', fontSize: 16 }}>
+          הצעות לשיפור הבלוג
+        </Link>
+      </div>
       <h1>{hebrew.title}</h1>
       <p className="subtitle">{hebrew.subtitle}</p>
 
       <div className="list-controls">
-        {user ? (
+        {userLoading ? (
+          <div style={{ textAlign: 'center', margin: '2em 0', fontSize: '1.2em' }}>טוען נתוני התחברות...</div>
+        ) : user ? (
           <AddRecipe
             onRecipeAdded={handleRecipeAdded}
             recipes={allRecipes}
             user={user}
             displayName={displayName}
+            userLoading={userLoading}
           />
         ) : (
           <div style={{ fontSize: 13, opacity: 0.7 }}>
