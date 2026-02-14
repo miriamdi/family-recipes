@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import './Proposals.css';
 import CommentsSection from './CommentsSection';
@@ -192,6 +193,9 @@ const Proposals = (props) => {
   return (
     <div className="proposals-container" dir="rtl" lang="he">
       <h1>הצעות לשיפור הבלוג</h1>
+      <div style={{ marginBottom: 12 }}>
+        <Link to="/" className="back-button">חזרה לכל המתכונים</Link>
+      </div>
       {userLoading ? (
         <div style={{ textAlign: 'center', margin: '2em 0', fontSize: '1.2em' }}>טוען נתוני התחברות...</div>
       ) : (

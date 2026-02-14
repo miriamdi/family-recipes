@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 import { hebrew } from '../data/hebrew';
 import './RecipeDetail.css';
@@ -340,6 +340,9 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
 
   return (
     <div className="recipe-detail">
+      <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 8 }}>
+        <Link to="/" className="back-button">חזרה לכל המתכונים</Link>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         {user && (recipe.user_email === user.email || user.email === ADMIN_EMAIL) && (
           <button className="delete-button" onClick={handleDelete}>{hebrew.deleteRecipe}</button>
