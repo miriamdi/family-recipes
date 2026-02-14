@@ -120,7 +120,7 @@ export default function ImageGallery({ images, recipeId, user, onImageDeleted })
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap'
             }}>
-              {img.uploaded_by_user_name}
+                {`תמונה של ${img.uploaded_by_user_name} ${formatIsraeliDate(img.created_at)}`}
             </div>
 
             {/* Delete button (only if owner or admin) */}
@@ -156,3 +156,14 @@ export default function ImageGallery({ images, recipeId, user, onImageDeleted })
     </div>
   );
 }
+
+  // Helper to format date in Israeli format DD/MM/YYYY
+  function formatIsraeliDate(dateString) {
+    if (!dateString) return '';
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  }

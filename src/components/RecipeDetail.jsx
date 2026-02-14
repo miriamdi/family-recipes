@@ -106,8 +106,56 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
 
   const formatIngredient = (ing) => {
     if (!ing) return '';
-    if (typeof ing === 'string') return ing;
-    return `${ing.name}${ing.qty ? ' • ' + ing.qty : ''}${ing.unit ? ' ' + ing.unit : ''}`;
+    if (typeof ing === 'string') return ing; // old format
+    if (ing.type === 'subtitle') return ing.text; // subtitle
+    // new ingredient
+    return `${ing.product_name || ing.name}${ing.amount || ing.qty ? ' • ' + (ing.amount || ing.qty) : ''}${ing.unit ? ' ' + ing.unit : ''}`;
+  };
+
+  const renderIngredients = () => {
+    if (!recipe.ingredients) return null;
+    if (Array.isArray(recipe.ingredients)) {
+      return recipe.ingredients.map((ing, idx) => {
+        if (ing.type === 'subtitle') {
+          return <h4 key={idx} style={{ margin: '10px 0 5px 0', fontWeight: 'bold' }}>{ing.text}</h4>;
+        } else {
+          return (
+            <li key={idx}>
+              <input type="checkbox" id={`ingredient-${idx}`} />
+              <label htmlFor={`ingredient-${idx}`}>{formatIngredient(ing)}</label>
+            </li>
+          );
+        }
+      });
+    } else {
+      // old format, assume array of strings or objects
+      return (recipe.ingredients || []).map((ing, idx) => (
+        <li key={idx}>
+          <input type="checkbox" id={`ingredient-${idx}`} />
+          <label htmlFor={`ingredient-${idx}`}>{formatIngredient(ing)}</label>
+        </li>
+      ));
+    }
+  };
+
+  const renderInstructions = () => {
+    if (!recipe.steps) return null;
+    if (Array.isArray(recipe.steps)) {
+      return recipe.steps.map((step, idx) => (
+        <li key={idx}>
+          <input type="checkbox" id={`step-${idx}`} />
+          <label htmlFor={`step-${idx}`}>{step}</label>
+        </li>
+      ));
+    } else {
+      // old format, assume string
+      return (
+        <li>
+          <input type="checkbox" id={`step-0`} />
+          <label htmlFor={`step-0`}>{recipe.steps}</label>
+        </li>
+      );
+    }
   };
 
   const handleDelete = () => {
@@ -323,32 +371,22 @@ export default function RecipeDetail({ recipeId, onBack, user, displayName }) {
         </div>
         <div className="info-item">
           <strong>📊 {hebrew.difficulty}</strong>
-          <p>{recipe.difficulty}</p>
+          <p>{recipe.difficulty === 'easy' ? 'קל' : recipe.difficulty === 'medium' ? 'בינוני' : recipe.difficulty === 'hard' ? 'קשה' : recipe.difficulty}</p>
         </div>
       </div>
 
       <div className="recipe-content">
         <div className="ingredients-section">
           <h2>{hebrew.ingredients}</h2>
-          <ul className="ingredients-list">
-            {Array.isArray(recipe.ingredients) && recipe.ingredients.map((ingredient, index) => (
-              <li key={index}>
-                <input type="checkbox" id={`ingredient-${index}`} />
-                <label htmlFor={`ingredient-${index}`}>{formatIngredient(ingredient)}</label>
-              </li>
-            ))}
-          </ul>
+          <div className="ingredients-list">
+            {renderIngredients()}
+          </div>
         </div>
 
         <div className="instructions-section">
           <h2>{hebrew.instructions}</h2>
           <ol className="instructions-list">
-            {Array.isArray(recipe.steps) && recipe.steps.map((step, index) => (
-              <li key={index}>
-                <input type="checkbox" id={`step-${index}`} />
-                <label htmlFor={`step-${index}`}>{step}</label>
-              </li>
-            ))}
+            {renderInstructions()}
           </ol>
         </div>
       </div>

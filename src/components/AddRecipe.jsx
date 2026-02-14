@@ -2,32 +2,30 @@ import React, { useState, useEffect } from 'react';
 import { hebrew } from '../data/hebrew';
 import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
+import { getEmojiForName } from '../lib/emojiUtils';
 
 export default function AddRecipe({ onRecipeAdded, recipes, user, displayName }) {
   const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState('');
-  const [image, setImage] = useState('');
+  const [recipeName, setRecipeName] = useState('');
+  const [image, setImage] = useState(() => getEmojiForName(''));
   const [category, setCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [useNewCategory, setUseNewCategory] = useState(false);
-  const [prepTime, setPrepTime] = useState('');
-  const [cookTime, setCookTime] = useState('');
+  const [workTimeMinutes, setWorkTimeMinutes] = useState('');
+  const [totalTimeMinutes, setTotalTimeMinutes] = useState('');
   const [servings, setServings] = useState('');
-  const [difficulty, setDifficulty] = useState('קל');
+  const [difficulty, setDifficulty] = useState('easy'); // stored as easy|medium|hard
   const [source, setSource] = useState('');
   const [ingredients, setIngredients] = useState([
-    { name: '', unit: '', qty: '' }
+    { type: 'ingredient', product_name: '', unit: '', amount: '' }
   ]);
-  const [steps, setSteps] = useState('');
-  // const [password, setPassword] = useState(''); // removed, no longer needed
+  const [instructions, setInstructions] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
-  // const IMAGE_UPLOAD_PASSWORD = import.meta.env.VITE_IMAGE_UPLOAD_PASSWORD; // removed, no longer needed
-    const MAX_IMAGE_BYTES = 2 * 1024 * 1024; // 2MB
-  const [filePreview, setFilePreview] = useState('');
-  const [recipeFileName, setRecipeFileName] = useState('');
-  const [authorFileName, setAuthorFileName] = useState('');
+  const [categorySuggestions, setCategorySuggestions] = useState([]);
+  const [productSuggestions, setProductSuggestions] = useState([]);
+  const [unitSuggestions, setUnitSuggestions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -38,29 +36,72 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
     setCategories(cats);
   }, [recipes]);
 
-  // simple emoji suggestion based on name keywords
   useEffect(() => {
-    if (!image) {
-      const n = (name || '').toLowerCase();
-      if (n.includes('עוגה') || n.includes('עוג')) setImage('🍰');
-      else if (n.includes('שוק') || n.includes("שוקולד")) setImage('🍪');
-      else if (n.includes('פנק') || n.includes('פנקייק')) setImage('🥞');
-      else if (n.includes('פסטה') || n.includes('פסטה')) setImage('🍝');
-      else if (n.includes('סלט')) setImage('🥗');
-      else if (n.includes('עוף')) setImage('🍗');
-      else if (n.includes('לחם')) setImage('🍞');
-      else setImage('🍽️');
+    // Use the emoji utility to generate an emoji from the recipe name (modular & data-driven)
+    try {
+      const e = getEmojiForName(recipeName || '');
+      setImage(e);
+    } catch (err) {
+      // keep a safe fallback
+      setImage('🍽️');
     }
-  }, [name]);
+  }, [recipeName]);
+
+  useEffect(() => {
+    // Fetch autocomplete suggestions from Supabase
+    const fetchSuggestions = async () => {
+      if (!useSupabase || !supabase) return;
+      try {
+        // Categories
+        const { data: catData } = await supabase.from('recipes').select('category').not('category', 'is', null);
+        const cats = Array.from(new Set(catData.map(r => r.category).filter(Boolean)));
+        setCategorySuggestions(cats);
+
+        // Product names from ingredients
+        const { data: ingData } = await supabase.from('recipes').select('ingredients').not('ingredients', 'is', null);
+        const products = new Set();
+        ingData.forEach(r => {
+          if (Array.isArray(r.ingredients)) {
+            r.ingredients.forEach(item => {
+              if (item.type === 'ingredient' && item.product_name) products.add(item.product_name);
+            });
+          }
+        });
+        setProductSuggestions(Array.from(products));
+
+        // Units from ingredients
+        const units = new Set();
+        ingData.forEach(r => {
+          if (Array.isArray(r.ingredients)) {
+            r.ingredients.forEach(item => {
+              if (item.type === 'ingredient' && item.unit) units.add(item.unit);
+            });
+          }
+        });
+        setUnitSuggestions(Array.from(units));
+      } catch (err) {
+        console.warn('Failed to fetch suggestions:', err);
+      }
+    };
+    fetchSuggestions();
+  }, []);
 
   const handleIngredientChange = (index, key, value) => {
     const arr = [...ingredients];
-    arr[index][key] = value;
+    if (arr[index].type === 'ingredient') {
+      arr[index][key] = value;
+    } else if (arr[index].type === 'subtitle' && key === 'text') {
+      arr[index].text = value;
+    }
     setIngredients(arr);
   };
 
   const addIngredientRow = () => {
-    setIngredients(prev => [...prev, { name: '', unit: '', qty: '' }]);
+    setIngredients(prev => [...prev, { type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+  };
+
+  const addSubtitleRow = () => {
+    setIngredients(prev => [...prev, { type: 'subtitle', text: '' }]);
   };
 
   const removeIngredientRow = (i) => {
@@ -72,29 +113,35 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
     setMessage('');
     setError('');
 
-    if (!name || ingredients.length === 0 || !steps) {
+    if (!recipeName || !category || !workTimeMinutes || !totalTimeMinutes || !servings || !difficulty || !source || ingredients.length === 0 || !instructions.trim()) {
       setError('בבקשה מלא את כל השדות הנדרשים');
       return;
     }
 
     const finalCategory = useNewCategory && newCategory ? newCategory : category || '';
 
+    // Map Hebrew difficulty to English
+    const difficultyMap = { 'קל': 'easy', 'בינוני': 'medium', 'קשה': 'hard' };
+    const englishDifficulty = difficultyMap[difficulty] || difficulty;
+
     const payload = {
-      title: name,
+      title: recipeName,
       description: '',
-      image: typeof image === 'string' && image.startsWith('data:') ? null : image,
+      image: image || '🍽️',
       category: finalCategory,
-      prep_time: parseInt(prepTime) || 0,
-      cook_time: parseInt(cookTime) || 0,
-      servings: parseInt(servings) || 1,
-      difficulty,
+      prep_time: parseInt(workTimeMinutes),
+      cook_time: parseInt(totalTimeMinutes),
+      servings: parseInt(servings),
+      difficulty: englishDifficulty,
       source,
-      recipe_file: recipeFileName || null,
-      author_file: authorFileName || null,
-      ingredients: ingredients
-        .filter(i => i.name.trim())
-        .map(i => ({ name: i.name.trim(), unit: i.unit.trim(), qty: i.qty.trim() })),
-      steps: steps.split('\n').map(s => s.trim()).filter(Boolean)
+      ingredients: ingredients.filter(i => i.type === 'ingredient' ? i.product_name.trim() : i.text.trim()).map(i => {
+        if (i.type === 'ingredient') {
+          return { product_name: i.product_name.trim(), unit: i.unit.trim(), amount: parseFloat(i.amount) || 0 };
+        } else {
+          return { type: 'subtitle', text: i.text.trim() };
+        }
+      }),
+      steps: instructions.split('\n').map(s => s.trim()).filter(Boolean)
     };
 
     // If Supabase is configured, attempt to save there (requires authenticated + approved user)
@@ -108,53 +155,22 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
 
         setSubmitting(true);
 
-        const toInsert = { ...payload, user_id: authUser.id, user_email: authUser.email };
-        // return the inserted row as a single object
-        const { data, error: insertErr } = await supabase.from('recipes').insert(toInsert).select().single();
+        // Use edge function for validation and insert
+        const RECIPE_SUBMIT_API = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recipe-submit`;
+        const res = await fetch(RECIPE_SUBMIT_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, user_id: authUser.id, user_email: authUser.email })
+        });
 
-        if (insertErr) {
-          console.error('Supabase insert error', insertErr);
-          // Common cause: row-level security / not in approved_emails
-          if (insertErr?.status === 401 || insertErr?.status === 403 || /permission|authorization|forbidden/i.test(insertErr?.message || '')) {
-            setError('אין לך הרשאה להוסיף מתכון — ודא שהאימייל שלך נמצא בטבלת ה-approved_emails');
-          } else {
-            setError(insertErr?.message || 'שגיאה בשמירה בשרת');
-          }
+        if (!res.ok) {
+          const err = await res.json();
+          setError(err.error || 'שגיאה בשמירה בשרת');
           setSubmitting(false);
           return;
         }
 
-        // data is now a single inserted row
-        const inserted = data || null;
-
-        // If there's an image preview, upload it to recipe_images table
-        if (filePreview && filePreview.startsWith('data:')) {
-          try {
-            const res = await fetch(filePreview);
-            const blob = await res.blob();
-            const ext = blob.type.split('/')[1] || 'png';
-            const filename = `recipes/${inserted.id}-${Date.now()}.${ext}`;
-
-            const { error: upErr } = await supabase.storage.from('recipes-images').upload(filename, blob, { upsert: true });
-            if (upErr) throw upErr;
-
-            const { data: urlData } = supabase.storage.from('recipes-images').getPublicUrl(filename);
-            const imageUrl = urlData?.publicUrl || null;
-
-            if (imageUrl) {
-              // Insert into recipe_images table
-              await supabase.from('recipe_images').insert({
-                recipe_id: inserted.id,
-                image_url: imageUrl,
-                uploaded_by_user_id: authUser.id,
-                uploaded_by_user_name: displayName || authUser.email
-              });
-            }
-          } catch (uploadErr) {
-            console.error('Image upload failed (non-blocking)', uploadErr);
-            // Don't fail the recipe creation if image upload fails
-          }
-        }
+        const inserted = await res.json();
 
         const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
 
@@ -163,16 +179,34 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
           // optimistic update + ask parent to re-fetch to reconcile server state
           onRecipeAdded(uiRecipe, { refetch: true });
           setShowForm(false);
-          setRecipeFileName('');
-          setAuthorFileName('');
-          setFilePreview('');
           setMessage('');
           setSubmitting(false);
         }, 800);
       } catch (err) {
         console.error('Supabase insert unexpected error', err);
-        setError(err?.message || 'שגיאה בשמירה בשרת');
-        setSubmitting(false);
+        // Fallback: try inserting directly with Supabase client (useful in dev or if functions are down)
+        try {
+          const { data: { user: fallbackUser } = {}, error: authErr } = await supabase.auth.getUser();
+          if (!fallbackUser?.id) throw new Error('לא מזוהים - התחברו כדי לנסות שוב');
+          const toInsertFallback = { ...payload, user_id: fallbackUser.id, user_email: fallbackUser.email };
+          const { data: insertData, error: insertErr } = await supabase.from('recipes').insert(toInsertFallback).select().single();
+          if (insertErr) throw insertErr;
+
+          const inserted = insertData || null;
+          const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
+          setMessage(hebrew.successMessage);
+          setTimeout(() => {
+            onRecipeAdded(uiRecipe, { refetch: true });
+            setShowForm(false);
+            setMessage('');
+            setSubmitting(false);
+          }, 800);
+          return;
+        } catch (fallbackErr) {
+          console.error('Fallback insert failed', fallbackErr);
+          setError(fallbackErr?.message || err?.message || 'שגיאה בשמירה בשרת');
+          setSubmitting(false);
+        }
       }
 
       return;
@@ -190,9 +224,6 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
       // local fallback: optimistic add, no server refetch needed
       onRecipeAdded(newRecipe, { refetch: false });
       setShowForm(false);
-      setRecipeFileName('');
-      setAuthorFileName('');
-      setFilePreview('');
       setMessage('');
     }, 1000);
   };
@@ -216,9 +247,18 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
               setShowForm(false);
               setError('');
               setMessage('');
-              setRecipeFileName('');
-              setAuthorFileName('');
-              setFilePreview('');
+              setRecipeName('');
+              setImage('');
+              setCategory('');
+              setNewCategory('');
+              setUseNewCategory(false);
+              setWorkTimeMinutes('');
+              setTotalTimeMinutes('');
+              setServings('');
+              setDifficulty('easy');
+              setSource('');
+              setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+              setInstructions('');
             }}
           >
             ✕
@@ -231,87 +271,50 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>{hebrew.recipeName}</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)} />
-          </div>
-
-          <div className="form-group">
-            <label>העלאת מתכון</label>
-            <input type="file" accept=".pdf,.txt,.md" onChange={e => {
-              const f = e.target.files && e.target.files[0];
-              if (!f) return;
-              setRecipeFileName(f.name);
-            }} />
-            {recipeFileName && <div style={{ marginTop: 6 }}>{recipeFileName}</div>}
-          </div>
-
-          <div className="form-group">
-            <label>{hebrew.recipeImage} • {hebrew.createEmojiInfo}</label>
-            <input type="text" value={image} onChange={e => setImage(e.target.value)} maxLength={2} />
-            <div style={{ marginTop: 8 }}>
-              <input type="file" accept="image/*" onChange={(e) => {
-                const f = e.target.files && e.target.files[0];
-                if (!f) return;
-                  // basic type/size checks before processing
-                  if (!f.type || !f.type.startsWith('image/')) {
-                    setError('הקובץ חייב להיות תמונה');
-                    return;
-                  }
-                  if (f.size > MAX_IMAGE_BYTES) {
-                    setError('התמונה גדולה מדי (מקסימום 2MB)');
-                    return;
-                  }
-                  // password check removed, handled by Supabase auth
-                  const reader = new FileReader();
-                  reader.onload = (ev) => {
-                    setImage(ev.target.result);
-                    setFilePreview(ev.target.result);
-                  };
-                  reader.readAsDataURL(f);
-              }} />
-            </div>
-            {filePreview && (
-              <div style={{ marginTop: 8 }}>
-                <img src={filePreview} alt="preview" style={{ maxWidth: '100%', borderRadius: 6 }} />
+            <div className="name-row">
+              <div className="input-with-emoji-wrapper">
+                <span className="input-emoji-prefix" aria-hidden="true">{image}</span>
+                <input className="recipe-name-input" type="text" value={recipeName} onChange={e => setRecipeName(e.target.value)} />
               </div>
-            )}
+            </div>
           </div>
 
           <div className="form-group">
             <label>{hebrew.categoryLabel}</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <select value={category} onChange={e => { setCategory(e.target.value); setUseNewCategory(false); }}>
-                <option value="">בחר קטגוריה</option>
-                {categories.map((c, idx) => <option key={idx} value={c}>{c}</option>)}
-                <option value="__new">--- קטגוריה חדשה ---</option>
-              </select>
-              { (category === '__new' || useNewCategory) && (
-                <input placeholder="הכנס קטגוריה חדשה" value={newCategory} onChange={e => { setNewCategory(e.target.value); setUseNewCategory(true); setCategory('__new'); }} />
-              )}
-            </div>
+            <input
+              type="text"
+              value={category}
+              onChange={e => setCategory(e.target.value)}
+              list="category-suggestions"
+              placeholder="הכנס קטגוריה"
+            />
+            <datalist id="category-suggestions">
+              {categorySuggestions.map((cat, idx) => <option key={idx} value={cat} />)}
+            </datalist>
           </div>
 
           <div className="form-row">
             <div className="form-group">
-              <label>{hebrew.prepTimeLabel}</label>
-              <input type="number" value={prepTime} onChange={e => setPrepTime(e.target.value)} />
+              <label>זמן עבודה (דקות)</label>
+              <input type="number" value={workTimeMinutes} onChange={e => setWorkTimeMinutes(e.target.value)} min="0" />
             </div>
             <div className="form-group">
-              <label>{hebrew.cookTimeLabel}</label>
-              <input type="number" value={cookTime} onChange={e => setCookTime(e.target.value)} />
+              <label>זמן הכנה כולל (דקות)</label>
+              <input type="number" value={totalTimeMinutes} onChange={e => setTotalTimeMinutes(e.target.value)} min="0" />
             </div>
           </div>
 
           <div className="form-row">
             <div className="form-group">
               <label>{hebrew.servingsLabel}</label>
-              <input type="number" value={servings} onChange={e => setServings(e.target.value)} />
+              <input type="number" value={servings} onChange={e => setServings(e.target.value)} min="1" />
             </div>
             <div className="form-group">
               <label>{hebrew.difficultyLabel}</label>
               <select value={difficulty} onChange={e => setDifficulty(e.target.value)}>
-                <option>קל</option>
-                <option>בינוני</option>
-                <option>קשה</option>
+                <option value="easy">קל</option>
+                <option value="medium">בינוני</option>
+                <option value="hard">קשה</option>
               </select>
             </div>
           </div>
@@ -322,38 +325,57 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
           </div>
 
           <div className="form-group">
-            <label>העלאת מאת</label>
-            <input type="file" accept=".pdf,.txt,.md" onChange={e => {
-              const f = e.target.files && e.target.files[0];
-              if (!f) return;
-              setAuthorFileName(f.name);
-            }} />
-            {authorFileName && <div style={{ marginTop: 6 }}>{authorFileName}</div>}
-          </div>
-
-          <div className="form-group">
             <label>{hebrew.ingredientsList}</label>
             {ingredients.map((ing, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.name} onChange={e => handleIngredientChange(i, 'name', e.target.value)} />
-                <input placeholder="יחידה (g/kg/unit)" style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} />
-                <input placeholder="כמות" style={{ width: 80 }} value={ing.qty} onChange={e => handleIngredientChange(i, 'qty', e.target.value)} />
-                <button type="button" onClick={() => removeIngredientRow(i)}>–</button>
+                {ing.type === 'ingredient' ? (
+                  <>
+                    <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
+                    <input placeholder="יחידה" style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
+                    <input placeholder="כמות" type="number" style={{ width: 80 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} min="0" step="0.01" />
+                  </>
+                ) : (
+                  <input placeholder="כותרת חלק (למשל: לבצק)" style={{ flex: 1 }} value={ing.text} onChange={e => handleIngredientChange(i, 'text', e.target.value)} />
+                )}
+                <button type="button" className="delete-ingredient" aria-label="הסר שורה" onClick={() => removeIngredientRow(i)}>–</button>
               </div>
             ))}
-            <button type="button" className="add-ingredient" onClick={addIngredientRow}>{hebrew.addIngredient}</button>
+            <datalist id="product-suggestions">
+              {productSuggestions.map((prod, idx) => <option key={idx} value={prod} />)}
+            </datalist>
+            <datalist id="unit-suggestions">
+              {unitSuggestions.map((unit, idx) => <option key={idx} value={unit} />)}
+            </datalist>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="add-ingredient" onClick={addIngredientRow}>הוספת מצרך</button>
+              <button type="button" className="add-ingredient" onClick={addSubtitleRow}>הוספת כותרת חלק</button>
+            </div>
           </div>
 
           <div className="form-group">
             <label>{hebrew.stepsList}</label>
-            <textarea value={steps} onChange={e => setSteps(e.target.value)} rows={6} />
+            <textarea value={instructions} onChange={e => setInstructions(e.target.value)} rows={6} />
           </div>
-
-          {/* password field removed, Supabase auth in use */}
 
           <div className="form-buttons">
             <button type="submit" className="submit-button" disabled={submitting}>{submitting ? 'שולח…' : hebrew.submit}</button>
-            <button type="button" className="cancel-button" onClick={() => { setShowForm(false); setError(''); setMessage(''); setRecipeFileName(''); setAuthorFileName(''); setFilePreview(''); }}>{hebrew.cancel}</button>
+            <button type="button" className="cancel-button" onClick={() => { 
+              setShowForm(false); 
+              setError(''); 
+              setMessage(''); 
+              setRecipeName('');
+              setImage('');
+              setCategory('');
+              setNewCategory('');
+              setUseNewCategory(false);
+              setWorkTimeMinutes('');
+              setTotalTimeMinutes('');
+              setServings('');
+              setDifficulty('easy');
+              setSource('');
+              setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+              setInstructions('');
+            }}>{hebrew.cancel}</button>
           </div>
         </form>
       </div>

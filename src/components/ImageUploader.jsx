@@ -89,6 +89,13 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
         return;
       }
 
+      console.log('DEBUG: Inserting image with:', {
+        recipe_id: recipeId,
+        uploaded_by_user_id: authUser.id,
+        uploaded_by_user_email: authUser.email,
+        uploaded_by_user_name: displayName || authUser.email
+      });
+
       const { error: insertErr } = await supabase.from('recipe_images').insert({
         recipe_id: recipeId,
         image_url: publicUrl,
@@ -98,6 +105,7 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
 
       if (insertErr) {
         console.error('Insert error:', insertErr);
+        console.error('Full error details:', JSON.stringify(insertErr, null, 2));
         if (insertErr.message.includes('permission')) {
           setError('אין לך הרשאה להוסיף תמונה. ודא שהאימייל שלך בטבלת ה-approved_emails');
         } else {

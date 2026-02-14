@@ -171,8 +171,7 @@ create policy "recipe_images_insert_approved" on public.recipe_images
   for insert
   to authenticated
   with check (
-    auth.uid() = uploaded_by_user_id
-    and auth.email() in (select email from public.approved_emails)
+    auth.email() in (select email from public.approved_emails)
   );
 
 -- Allow users to delete ONLY their own images, or admin can delete any image

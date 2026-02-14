@@ -13,8 +13,8 @@ export const hebrew = {
   recipeName: "שם המתכון",
   recipeDescription: "תיאור קצר (אופציונלי)",
   recipeImage: "אימוג'י (🍪, 🍝, וכו')",
-  prepTimeLabel: "זמן הכנה (דקות)",
-  cookTimeLabel: "זמן אפייה (דקות)",
+  prepTimeLabel: "זמן עבודה (דקות)",
+  cookTimeLabel: "זמן הכנה כולל (דקות)",
   servingsLabel: "מנות",
   difficultyLabel: "דרגת קושי",
   ingredientsList: "מצרכים",
@@ -27,10 +27,10 @@ export const hebrew = {
   close: "סגור",
   categoryLabel: "קטגוריה",
   sourceLabel: "מקור",
-  addIngredient: "הוסף מצרך",
+  addIngredient: "הוספת מצרך",
   deleteRecipe: "מחיקת מתכון",
   deleteSuccess: "המתכון נמחק",
   deletePasswordPrompt: "הכנס סיסמת מחיקה",
-  createEmojiInfo: "אימוג'י ייווצר אוטומטית לפי השם",
+  createEmojiInfo: "",
   popularity: "הנפוצים"
 };

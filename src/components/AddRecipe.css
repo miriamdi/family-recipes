@@ -189,6 +189,71 @@ form {
   background-color: #7f8c8d;
 }
 
+/* Delete ingredient button (prominent, accessible) */
+.delete-ingredient {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff5f5; /* subtle red background */
+  border: 1px solid #e74c3c;
+  color: #e74c3c;
+  font-size: 1.35rem;
+  padding: 8px 12px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+  margin-left: 8px;
+}
+.delete-ingredient:hover,
+.delete-ingredient:focus {
+  background-color: #e74c3c;
+  color: #fff;
+  transform: scale(1.06);
+  outline: none;
+  box-shadow: 0 4px 12px rgba(231,76,60,0.16);
+}
+.delete-ingredient:focus {
+  box-shadow: 0 0 0 4px rgba(231,76,60,0.12);
+}
+
+/* Emoji display */
+/* recipe name + emoji prefix inside input */
+.input-with-emoji-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.input-emoji-prefix {
+  position: absolute;
+  left: 12px; /* prefix sits on the left inside input */
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 28px;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+}
+
+/* recipe name + emoji row */
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recipe-name-input {
+  flex: 1;
+  min-width: 0; /* allow input to shrink in narrow screens */
+  padding-left: 80px; /* make room for the emoji prefix */
+}
+
+@media (max-width: 600px) {
+  .input-emoji-prefix { font-size: 22px; left: 10px; }
+  .recipe-name-input { padding-left: 72px; }
+}
+
 /* Mobile Responsive */
 @media (max-width: 600px) {
   .modal-content {
