@@ -5,7 +5,7 @@ import './App.css';
 import { supabase, useSupabase } from './lib/supabaseClient';
 import { getOrCreateProfile } from './lib/profile';
 
-function AuthControls({ user, setUser }) {
+function AuthControls({ user, setUser, displayName, setDisplayName, userLoading }) {
   const login = async () => {
     if (!useSupabase || !supabase) {
       // Supabase not configured: don't throw or show a blocking alert during CI/build.
@@ -51,11 +51,32 @@ function AuthControls({ user, setUser }) {
     setUser(null);
   };
 
+  const updateDisplayName = async () => {
+    if (!user) return;
+    const name = window.prompt('עדכן את שם התצוגה שלך', displayName || '');
+    if (!name) return;
+    try {
+      const { error } = await supabase.from('profiles').upsert(
+        { user_id: user.id, display_name: name.trim() },
+        { onConflict: 'user_id' }
+      );
+      if (error) throw error;
+      setDisplayName(name.trim());
+    } catch (err) {
+      console.error('Failed to update display name', err);
+      alert('שגיאה בעדכון השם');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       {user ? (
         <>
-          <span style={{ fontSize: 14 }}>{user.email}</span>
+          <span style={{ fontSize: 14, marginRight: 8 }}>{displayName || ''}</span>
+          <button onClick={updateDisplayName} style={{ marginRight: 8 }}>
+            {displayName ? 'לשנות שם' : 'להגדיר שם'}
+          </button>
+          <span style={{ fontSize: 14, marginRight: 8 }}>{user.email}</span>
           <button onClick={logout}>התנתקות</button>
         </>
       ) : (
@@ -70,6 +91,7 @@ function App({ children }) {
   const [user, setUser] = useState(null);
   const [displayName, setDisplayName] = useState(null);
   const [showSupabaseBanner, setShowSupabaseBanner] = useState(true);
+  const [userLoading, setUserLoading] = useState(true);
 
   useEffect(() => {
     document.documentElement.dir = 'rtl';
@@ -77,15 +99,32 @@ function App({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!useSupabase || !supabase) return;
+    if (!useSupabase || !supabase) {
+      setUserLoading(false);
+      return;
+    }
+    let subscription = null;
     (async () => {
+      setUserLoading(true);
       const { data } = await supabase.auth.getSession();
       if (data?.session?.user) setUser(data.session.user);
-
-      supabase.auth.onAuthStateChange((event, session) => {
-        setUser(session?.user ?? null);
-      });
+      setUserLoading(false);
     })();
+
+    // subscribe to auth changes and ensure we unsubscribe on cleanup
+    const listener = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+    // listener shape may be { data: { subscription } } or contain subscription directly
+    subscription = listener?.data?.subscription ?? listener?.subscription ?? null;
+
+    return () => {
+      try {
+        subscription?.unsubscribe?.();
+      } catch (err) {
+        // ignore cleanup errors
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -93,11 +132,13 @@ function App({ children }) {
       setDisplayName(null);
       return;
     }
-
-    (async () => {
-      const name = await getOrCreateProfile(user);
-      setDisplayName(name);
-    })();
+    // Only try to fetch/create a profile if we don't already have a displayName
+    if (!displayName) {
+      (async () => {
+        const name = await getOrCreateProfile(user);
+        if (name) setDisplayName(name);
+      })();
+    }
   }, [user]);
 
   return (
@@ -115,14 +156,32 @@ function App({ children }) {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 12 }}>
-        <AuthControls user={user} setUser={setUser} />
+        <AuthControls user={user} setUser={setUser} displayName={displayName} setDisplayName={setDisplayName} userLoading={userLoading} />
       </div>
 
-      {React.Children.map(children, child =>
-        React.isValidElement(child)
-          ? React.cloneElement(child, { user, displayName })
-          : child
-      )}
+      {React.Children.map(children, child => {
+        // If this child is a Routes element, clone its Route children so their
+        // `element` props receive the auth props (user, displayName, userLoading).
+        if (React.isValidElement(child) && child.props && child.props.children) {
+          const newChildren = React.Children.map(child.props.children, routeChild => {
+            if (
+              React.isValidElement(routeChild) &&
+              routeChild.props &&
+              routeChild.props.element &&
+              React.isValidElement(routeChild.props.element)
+            ) {
+              const newElement = React.cloneElement(routeChild.props.element, { user, displayName, userLoading });
+              return React.cloneElement(routeChild, { ...routeChild.props, element: newElement });
+            }
+            return routeChild;
+          });
+          return React.cloneElement(child, { ...child.props, children: newChildren });
+        }
+
+        return React.isValidElement(child)
+          ? React.cloneElement(child, { user, displayName, userLoading })
+          : child;
+      })}
     </div>
   );
 }
