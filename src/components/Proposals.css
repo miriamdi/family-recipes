@@ -1,0 +1,161 @@
+.proposals-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+}
+
+.proposal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-bottom: 2rem;
+}
+
+.proposal-form input,
+.proposal-form textarea {
+  padding: 0.7rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.proposal-form button {
+  align-self: flex-end;
+  padding: 0.5rem 1.2rem;
+  background: #2d7ff9;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.proposal-form button:disabled {
+  background: #b3c7e6;
+  cursor: not-allowed;
+}
+
+.form-error {
+  color: #d32f2f;
+  font-size: 0.95em;
+}
+
+.proposals-sorting {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.proposals-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.proposal-card {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 1.2rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.proposal-meta {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+
+.important-btn {
+  background: #ffb300;
+  color: #222;
+  border: none;
+  border-radius: 5px;
+  padding: 0.3rem 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.important-btn:disabled {
+  background: #ffe082;
+  color: #888;
+  cursor: not-allowed;
+}
+
+.important-count {
+  font-size: 1.05em;
+  font-weight: 500;
+  color: #e65100;
+}
+
+.comments-section {
+  margin-top: 0.7rem;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.7rem 1rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.comment {
+  font-size: 0.98em;
+  color: #333;
+}
+
+.comment-user {
+  font-weight: 600;
+  margin-right: 0.4em;
+}
+
+.add-comment-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.add-comment-form input {
+  flex: 1;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+}
+
+.add-comment-form button {
+  background: #2d7ff9;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.4rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.add-comment-form button:disabled {
+  background: #b3c7e6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .proposals-container {
+    padding: 0.5rem;
+  }
+  .proposal-card {
+    padding: 0.7rem;
+  }
+  .comments-section {
+    padding: 0.5rem 0.5rem;
+  }
+}
