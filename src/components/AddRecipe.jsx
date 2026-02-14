@@ -4,7 +4,7 @@ import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
 
-export default function AddRecipe({ onRecipeAdded, recipes, user, displayName }) {
+export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, userLoading }) {
   const [showForm, setShowForm] = useState(false);
   const [recipeName, setRecipeName] = useState('');
   const [image, setImage] = useState(() => getEmojiForName(''));
@@ -112,6 +112,11 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
     e.preventDefault();
     setMessage('');
     setError('');
+
+    if (userLoading) {
+      setError('טוען נתוני התחברות...');
+      return;
+    }
 
     if (!recipeName || !category || !workTimeMinutes || !totalTimeMinutes || !servings || !difficulty || !source || ingredients.length === 0 || !instructions.trim()) {
       setError('בבקשה מלא את כל השדות הנדרשים');
@@ -296,7 +301,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName })
               value={category}
               onChange={e => setCategory(e.target.value)}
               list="category-suggestions"
-              placeholder="הכנס קטגוריה"
+              placeholder=" נא לבחור קטגוריה קיימת או להכניס קטגוריה חדשה"
             />
             <datalist id="category-suggestions">
               {categorySuggestions.map((cat, idx) => <option key={idx} value={cat} />)}
