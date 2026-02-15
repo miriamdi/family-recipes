@@ -80,6 +80,12 @@
   white-space: nowrap;
 }
 
+.amount-fraction-primary {
+  color: #222;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;

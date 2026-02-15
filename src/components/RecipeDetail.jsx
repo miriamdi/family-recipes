@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
@@ -141,30 +140,38 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
     if (typeof ing === 'string') return ing; // old format
     if (ing.type === 'subtitle') return ing.text; // subtitle
 
-    // new ingredient: render as "amount [unit] product_name"
-    const amount = (ing.amount != null ? ing.amount : (ing.qty != null ? ing.qty : ''));
+    const amountRaw = (ing.amount_raw != null && String(ing.amount_raw).trim() !== '') ? String(ing.amount_raw).trim() : null;
     const unit = ing.unit || '';
     const name = ing.product_name || ing.name || '';
 
     // If unit is exactly the Hebrew word "יחידה", omit it from display
     const showUnit = unit && unit !== 'יחידה';
 
-    // Build parts while avoiding extra spaces
-    const parts = [];
-    // format amount to friendly fraction when numeric
-    const amtStr = (amount !== '' && !isNaN(Number(amount))) ? formatAmountToFraction(Number(amount)) : (amount || '');
-    if (amtStr) parts.push(amtStr);
-    if (showUnit) parts.push(unit);
-    if (name) parts.push(name);
+    // Adjust amount display for fractions (number on the left, fraction on the right)
+    const amountElement = (() => {
+      if (!amountRaw) return null;
+      const mixedMatch = amountRaw.match(/^(-?\d+)\s+(\d+\/\d+)$/);
+      if (mixedMatch) {
+        const intPart = mixedMatch[1];
+        const fracPart = mixedMatch[2];
+        return (
+          <span className="amount-ltr" style={{ direction: 'ltr', display: 'inline-flex', gap: 6 }}>
+            <span className="amount-int">{intPart}</span>
+            <span className="amount-frac">{fracPart}</span>
+          </span>
+        );
+      }
+      return amountRaw; // Return as-is if not a mixed fraction
+    })();
 
-    let result = parts.join(' ');
-    // Append comment if present (keep spacing and RTL). Use parentheses and omit if empty.
-    const comment = (ing.comment || '').toString().trim();
-    if (comment) {
-      result = `${result} (${comment})`;
-    }
-
-    return result;
+    return (
+      <span>
+        {amountElement && <>{amountElement}{' '}</>}
+        {showUnit && <>{unit}{' '}</>}
+        {name}
+        {ing.comment ? <> {' '}({ing.comment})</> : null}
+      </span>
+    );
   };
 
   const renderIngredients = () => {

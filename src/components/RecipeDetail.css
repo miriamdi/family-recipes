@@ -164,6 +164,11 @@
   text-align: right;
 }
 
+/* Ensure numeric amount parts render left-to-right and keep integer on left, fraction on right */
+.amount-ltr { direction: ltr; display: inline-flex; gap: 6px; align-items: baseline; }
+.amount-ltr .amount-int { font-weight: normal; }
+.amount-ltr .amount-frac { font-size: 0.95em; color: #333; }
+
 .ingredients-list input[type="checkbox"]:checked + label,
 .instructions-list input[type="checkbox"]:checked + label {
   color: #95a5a6;

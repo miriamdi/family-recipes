@@ -10,30 +10,25 @@ const FOOD_EMOJI_CATALOG = [
   { emoji: '🍔', keywords: ['burger', 'בורגר', 'המבורגר'] },
   { emoji: '🍗', keywords: ['chicken', 'עוף'] },
   { emoji: '🍖', keywords: ['meat', 'בשר', 'סטייק'] },
-  { emoji: '🍤', keywords: ['shrimp', 'שרימפ', 'שימפ'] },
   { emoji: '🍣', keywords: ['sushi', 'סושי'] },
   { emoji: '🍱', keywords: ['bento', 'בן(ט)ו'] },
   { emoji: '🍛', keywords: ['curry', 'תבשיל', 'קארי'] },
-  { emoji: '🍲', keywords: ['stew', 'מרק', 'תבשיל'] },
-  { emoji: '🍜', keywords: ['ramen', 'noodle', 'מרק', 'אטריות'] },
+  { emoji: '🍲', keywords: ['stew', 'מרק'] },
+  { emoji: '🍜', keywords: ['ramen', 'noodle','אטריות', 'נודל'] },
   { emoji: '🍚', keywords: ['rice', 'אורז'] },
   { emoji: '🍞', keywords: ['bread', 'לחם'] },
   { emoji: '🥐', keywords: ['croissant', 'מאפה', 'בצק'] },
   { emoji: '🥯', keywords: ['bagel', 'בייגל'] },
-  { emoji: '🥖', keywords: ['baguette', 'באגל', 'לחם'] },
+  { emoji: '🥖', keywords: ['baguette', 'בגט', 'לחמניה'] },
   { emoji: '🧀', keywords: ['cheese', 'גבינה'] },
   { emoji: '🍳', keywords: ['egg', 'ביצה', 'ביצים'] },
-  { emoji: '🥚', keywords: ['egg', 'ביצה'] },
-  { emoji: '🥓', keywords: ['bacon', 'בקון'] },
   { emoji: '🥩', keywords: ['steak', 'סטייק'] },
   { emoji: '🍟', keywords: ['fries', 'צ' + 'יפס', 'ציפס'] },
   { emoji: '🌭', keywords: ['hotdog', 'נקניקיה'] },
   { emoji: '🍿', keywords: ['popcorn', 'פופקורן'] },
-  { emoji: '🍿', keywords: ['popcorn', 'פופקורן'] },
-  { emoji: '🧂', keywords: ['salt', 'מלח'] },
   { emoji: '🍰', keywords: ['cake', 'עוגה', 'עוגת'] },
-  { emoji: '🎂', keywords: ['birthday cake', 'עוגת יום הולדת'] },
-  { emoji: '🧁', keywords: ['cupcake', 'קאפקייק', 'מאפה'] },
+  { emoji: '🎂', keywords: ['birthday cake', 'יום הולדת'] },
+  { emoji: '🧁', keywords: ['cupcake', 'קאפקייק', 'מאפין'] },
   { emoji: '🍪', keywords: ['cookie', 'עוגיה', 'עוגיות'] },
   { emoji: '🍩', keywords: ['donut', 'סופגניה'] },
   { emoji: '🍨', keywords: ['icecream', 'גלידה'] },
@@ -70,23 +65,21 @@ const FOOD_EMOJI_CATALOG = [
   { emoji: '🍠', keywords: ['sweet potato', 'בטטה'] },
   { emoji: '🥯', keywords: ['bagel', 'בייגל'] },
   { emoji: '🥨', keywords: ['pretzel', 'פרצל'] },
-  { emoji: '🫓', keywords: ['flatbread', 'פיתה'] },
+  { emoji: '🫓', keywords: ['flatbread', 'פיתה', 'פנקייק'] },
   { emoji: '🥟', keywords: ['dumpling', 'כופתא'] },
   { emoji: '🫔', keywords: ['tamale', 'טמאלה'] },
   { emoji: '🌮', keywords: ['taco', 'טאקו'] },
   { emoji: '🌯', keywords: ['burrito', 'בוריטו'] },
   { emoji: '🥪', keywords: ['sandwich', 'כריך'] },
   { emoji: '🫙', keywords: ['jar', 'צנצנת'] },
-  { emoji: '🍤', keywords: ['fried shrimp', 'שרימפ'] },
   { emoji: '🍖', keywords: ['meat', 'בשר'] },
   { emoji: '🍗', keywords: ['chicken', 'עוף'] },
   { emoji: '🍳', keywords: ['fry', 'ביצים', 'ביצה'] },
   { emoji: '🍽️', keywords: ['meal', 'ארוחה'] }
 ];
 
-const GENERIC_FOOD_EMOJIS = [
-  '🍽️','🍝','🍕','🍔','🍟','🍗','🍖','🍤','🍣','🍱','🍛','🍲','🍜','🍚','🍙','🍞','🥐','🥯','🥖','🧀','🍳','🥓','🥩','🌭','🥪','🌮','🌯','🥗','🥘','🥫','🍿','🧂','🍰','🎂','🧁','🍪','🍩','🍨','🍦','🍫','🍬','🍭','🍯','🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🍒','🍑','🥭','🍍','🥝','🥑','🥦','🥬','🥒','🌶️','🫑','🥕','🧄','🧅','🥔','🍠','🥟','🫓','🥨','🥯','🍮'
-];
+const GENERIC_FOOD_EMOJIS = [...new Set(FOOD_EMOJI_CATALOG.map(item => item.emoji))];
+
 
 function sanitizeText(text = '') {
   // Keep implementation CI-safe: allow ASCII letters/digits and Hebrew range, normalize punctuation to spaces.

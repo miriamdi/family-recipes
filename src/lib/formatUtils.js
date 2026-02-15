@@ -52,3 +52,36 @@ export function formatAmountToFraction(amount) {
 }
 
 export default { formatAmountToFraction };
+
+// Parse user-entered amount strings (e.g. "1 1/4", "3/4", "1.25") into a decimal number
+export function parseAmountToDecimal(input) {
+  if (input == null || input === '') return 0;
+  if (typeof input === 'number') return input;
+  let s = String(input).trim();
+  if (s === '') return 0;
+
+  // Mixed number like "1 1/4" or "-1 1/4"
+  const mixed = s.match(/^(-?\d+)\s+(\d+)\/(\d+)$/);
+  if (mixed) {
+    const sign = mixed[1].startsWith('-') ? -1 : 1;
+    const intPart = Math.abs(parseInt(mixed[1], 10));
+    const num = parseInt(mixed[2], 10);
+    const den = parseInt(mixed[3], 10) || 1;
+    if (den === 0) return 0;
+    return sign * (intPart + num / den);
+  }
+
+  // Simple fraction like "3/4" or "-3/4"
+  const frac = s.match(/^(-?)(\d+)\/(\d+)$/);
+  if (frac) {
+    const sign = frac[1] === '-' ? -1 : 1;
+    const num = parseInt(frac[2], 10);
+    const den = parseInt(frac[3], 10) || 1;
+    if (den === 0) return 0;
+    return sign * (num / den);
+  }
+
+  // Fallback: parse as float (handles "1.25", "0.5", etc.)
+  const f = parseFloat(s.replace(',', '.'));
+  return Number.isFinite(f) ? f : 0;
+}

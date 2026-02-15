@@ -3,7 +3,7 @@ import { hebrew } from '../data/hebrew';
 import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
-import { formatAmountToFraction } from '../lib/formatUtils';
+import { formatAmountToFraction, parseAmountToDecimal } from '../lib/formatUtils';
 
 export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, userLoading, editMode = false, initialData = null, onSave = null, onCancel = null }) {
   const [showForm, setShowForm] = useState(false);
@@ -43,13 +43,11 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       const diffMap = { easy: 'קל', medium: 'בינוני', hard: 'קשה' };
       setDifficulty(diffMap[initialData.difficulty] || initialData.difficulty || 'easy');
       setSource(initialData.source || '');
-      setIngredients(Array.isArray(initialData.ingredients) ? initialData.ingredients.map(i => i.type === 'subtitle' ? { type: 'subtitle', text: i.text } : { type: 'ingredient', product_name: i.product_name || i.name || '', unit: i.unit || '', amount: i.amount || i.qty || '', comment: i.comment || '' }) : [{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
+      setIngredients(Array.isArray(initialData.ingredients) ? initialData.ingredients.map(i => i.type === 'subtitle' ? { type: 'subtitle', text: i.text } : { type: 'ingredient', product_name: i.product_name || i.name || '', unit: i.unit || '', amount: i.amount_raw ?? i.amount ?? i.qty ?? '', comment: i.comment || '' }) : [{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
       setInstructions(Array.isArray(initialData.steps) ? initialData.steps.join('\n') : (initialData.steps || ''));
     }
-    // build category list from built-in recipes and user recipes
-    const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-    const all = [...recipes, ...userRecipes];
-    const cats = Array.from(new Set(all.map(r => r.category).filter(Boolean)));
+    // build category list from provided `recipes` only (DB-sourced)
+    const cats = Array.from(new Set((recipes || []).map(r => r.category).filter(Boolean)));
     setCategories(cats);
   }, [recipes]);
 
@@ -65,87 +63,53 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   }, [recipeName]);
 
   useEffect(() => {
-    // Fetch autocomplete suggestions from Supabase
+    // Only fetch suggestions from Supabase (use DB as single source of truth)
     const fetchSuggestions = async () => {
-      if (!useSupabase || !supabase) return;
+      if (!useSupabase || !supabase) {
+        // Clear suggestions when DB is not available
+        setCategorySuggestions([]);
+        setProductSuggestions([]);
+        setUnitSuggestions([]);
+        return;
+      }
       try {
-        // Categories
         const { data: catData } = await supabase.from('recipes').select('category').not('category', 'is', null);
-        const cats = Array.from(new Set(catData.map(r => r.category).filter(Boolean)));
+        const cats = Array.from(new Set((catData || []).map(r => r.category).filter(Boolean)));
         setCategorySuggestions(cats);
 
-        // Product names from ingredients
         const { data: ingData } = await supabase.from('recipes').select('ingredients').not('ingredients', 'is', null);
         const products = new Set();
-        ingData.forEach(r => {
-          if (Array.isArray(r.ingredients)) {
-            r.ingredients.forEach(item => {
-              if (item.type === 'ingredient' && item.product_name) products.add(item.product_name);
-            });
-          }
-        });
-        setProductSuggestions(Array.from(products));
-
-        // Units from ingredients
         const units = new Set();
-        ingData.forEach(r => {
-          if (Array.isArray(r.ingredients)) {
-            r.ingredients.forEach(item => {
-              if (item.type === 'ingredient' && item.unit) units.add(item.unit);
-            });
-          }
+        (ingData || []).forEach(r => {
+          if (!r || !Array.isArray(r.ingredients)) return;
+          r.ingredients.forEach(item => {
+            if (!item || item.type !== 'ingredient') return;
+            if (item.product_name) products.add(item.product_name.trim().toLowerCase());
+            if (item.unit) units.add(item.unit.trim().toLowerCase());
+          });
         });
-        setUnitSuggestions(Array.from(units));
+        setProductSuggestions(Array.from(products).map(p => p.charAt(0).toUpperCase() + p.slice(1)));
+        setUnitSuggestions(Array.from(units).map(u => u.charAt(0).toUpperCase() + u.slice(1)));
       } catch (err) {
-        console.warn('Failed to fetch suggestions:', err);
+        console.warn('Failed to fetch suggestions from Supabase:', err);
+        setCategorySuggestions([]);
+        setProductSuggestions([]);
+        setUnitSuggestions([]);
       }
     };
     fetchSuggestions();
-  }, []);
+  }, [recipes]);
 
-  const handleIngredientChange = (index, key, value) => {
-    const arr = [...ingredients];
-    // Products that should default to unit 'יחידה' when entered (user can still change)
-    const autoUnitProducts = new Set(['ביצה', 'ביצים', 'egg', 'eggs', 'ביצה׳']);
-    // Common fruit/vegetable keywords (matches substrings) to assume unit 'יחידה'
-    const produceKeywords = ['תפוח', 'בננה', 'גזר', 'מלפפון', 'עגבניה', 'עגבניות', 'אבוקדו', 'תפוז', 'לימון', 'חסה', 'פלפל', 'קישוא', 'תירס', 'חציל', 'סלק', 'בצל', 'שום', 'תפוחאדמה', 'תפוח אדמה', 'בטטה', 'דלעת', 'סלרי'];
+  const handleIngredientChange = (value) => {
+    setIngredients(prev => prev.map(ing => ({ ...ing, product_name: value })));
+    const filteredProducts = productSuggestions.filter(product => product.toLowerCase().includes(value.toLowerCase()));
+    setProductSuggestions(filteredProducts);
+  };
 
-    if (arr[index].type === 'ingredient') {
-      if (key === 'product_name') {
-        arr[index][key] = value;
-
-        // Only auto-fill unit when the unit field is empty
-        const unitEmpty = !arr[index].unit || String(arr[index].unit).trim() === '';
-        if (unitEmpty) {
-          const norm = String(value || '').trim().toLowerCase();
-          const tokens = norm.split(/\s+/).map(t => t.replace(/[^\p{L}\p{N}]+/gu, ''));
-
-          let shouldSetUnit = false;
-          for (const t of tokens) {
-            if (!t) continue;
-            if (autoUnitProducts.has(t) || produceKeywords.some(pk => t.includes(pk))) {
-              shouldSetUnit = true;
-              break;
-            }
-            // basic plural handling: if ends with 'ים' or 'ות', check singular stem
-            if (t.endsWith('ים') || t.endsWith('ות')) {
-              const stem = t.replace(/(ים|ות)$/, '');
-              if (autoUnitProducts.has(stem) || produceKeywords.some(pk => stem.includes(pk))) {
-                shouldSetUnit = true;
-                break;
-              }
-            }
-          }
-
-          if (shouldSetUnit) arr[index].unit = 'יחידה';
-        }
-      } else {
-        arr[index][key] = value;
-      }
-    } else if (arr[index].type === 'subtitle' && key === 'text') {
-      arr[index].text = value;
-    }
-    setIngredients(arr);
+  const handleUnitChange = (value) => {
+    setIngredients(prev => prev.map(ing => ({ ...ing, unit: value })));
+    const filteredUnits = unitSuggestions.filter(unit => unit.toLowerCase().includes(value.toLowerCase()));
+    setUnitSuggestions(filteredUnits);
   };
 
   const moveRowUp = (i) => {
@@ -225,7 +189,10 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       source,
       ingredients: ingredients.filter(i => i.type === 'ingredient' ? i.product_name.trim() : i.text.trim()).map(i => {
         if (i.type === 'ingredient') {
-          return { product_name: i.product_name.trim(), unit: i.unit.trim(), amount: parseFloat(i.amount) || 0, comment: (i.comment || '').trim() };
+          // parse amount entered as fraction or decimal into a numeric value for storage
+          const rawInput = (i.amount != null) ? String(i.amount).trim() : '';
+          const amt = parseAmountToDecimal(rawInput);
+          return { product_name: i.product_name.trim(), unit: i.unit.trim(), amount: amt, amount_raw: rawInput, comment: (i.comment || '').trim() };
         } else {
           return { type: 'subtitle', text: i.text.trim() };
         }
@@ -339,20 +306,10 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       return;
     }
 
-    // fallback to localStorage when Supabase not configured
-    const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
-    const newId = Math.max(...userRecipes.map(r => r.id), 0) + 1;
-    const newRecipe = { id: newId, ...payload };
-    userRecipes.push(newRecipe);
-    localStorage.setItem('userRecipes', JSON.stringify(userRecipes));
-
-    setMessage(hebrew.successMessage);
-    setTimeout(() => {
-      // local fallback: optimistic add, no server refetch needed
-      onRecipeAdded(newRecipe, { refetch: false });
-      setShowForm(false);
-      setMessage('');
-    }, 1000);
+    // Do NOT save locally — require Supabase DB. If DB not available, return an error.
+    setError('אין חיבור לשרת שמירת מתכונים (Supabase) — שמירה דורשת חיבור למסד נתונים.');
+    setSubmitting(false);
+    return;
   };
 
   if (!showForm) {
@@ -459,8 +416,20 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                 {ing.type === 'ingredient' ? (
                   <>
                     <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
-                    <input placeholder="כמות" type="number" style={{ width: 80 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} min="0" step="0.01" />
-                    <span className="amount-fraction" aria-hidden="true">{ing.amount !== '' && ing.amount != null && !isNaN(Number(ing.amount)) ? formatAmountToFraction(Number(ing.amount)) : ''}</span>
+                    <input placeholder="כמות (אפשר 1 1/4)" type="text" style={{ width: 100 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} />
+                    <span className="amount-fraction" aria-hidden="true">
+                      {(() => {
+                        const raw = (ing.amount || '').toString().trim();
+                        // Show decimal only if user entered a fraction
+                        if (/^-?\d+\s+\d+\/\d+$/.test(raw) || /^-?\d+\/\d+$/.test(raw)) {
+                          const dec = parseAmountToDecimal(raw);
+                          if (dec == null || isNaN(Number(dec))) return raw;
+                          const decRounded = (Math.round(Number(dec) * 100) / 100);
+                          return `${raw} (${decRounded})`;
+                        }
+                        return ''; // Otherwise, show nothing
+                      })()}
+                    </span>
                     <input placeholder='יחידה / גרם / מ"ל...' style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
                     <input placeholder="הערה [אם יש]" style={{ width: 160 }} value={ing.comment} onChange={e => handleIngredientChange(i, 'comment', e.target.value)} />
                   </>
@@ -477,10 +446,14 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               </div>
             ))}
             <datalist id="product-suggestions">
-              {productSuggestions.map((prod, idx) => <option key={idx} value={prod} />)}
+              {productSuggestions.map((product, index) => (
+                <option key={index} value={product} />
+              ))}
             </datalist>
             <datalist id="unit-suggestions">
-              {unitSuggestions.map((unit, idx) => <option key={idx} value={unit} />)}
+              {unitSuggestions.map((unit, index) => (
+                <option key={index} value={unit} />
+              ))}
             </datalist>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="add-ingredient" onClick={addIngredientRow}>הוספת מצרך</button>
