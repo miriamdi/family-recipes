@@ -17,7 +17,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   const [difficulty, setDifficulty] = useState('easy'); // stored as easy|medium|hard
   const [source, setSource] = useState('');
   const [ingredients, setIngredients] = useState([
-    { type: 'ingredient', product_name: '', unit: '', amount: '' }
+    { type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }
   ]);
   const [instructions, setInstructions] = useState('');
   const [message, setMessage] = useState('');
@@ -42,7 +42,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       const diffMap = { easy: 'קל', medium: 'בינוני', hard: 'קשה' };
       setDifficulty(diffMap[initialData.difficulty] || initialData.difficulty || 'easy');
       setSource(initialData.source || '');
-      setIngredients(Array.isArray(initialData.ingredients) ? initialData.ingredients.map(i => i.type === 'subtitle' ? { type: 'subtitle', text: i.text } : { type: 'ingredient', product_name: i.product_name || i.name || '', unit: i.unit || '', amount: i.amount || i.qty || '' }) : [{ type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+      setIngredients(Array.isArray(initialData.ingredients) ? initialData.ingredients.map(i => i.type === 'subtitle' ? { type: 'subtitle', text: i.text } : { type: 'ingredient', product_name: i.product_name || i.name || '', unit: i.unit || '', amount: i.amount || i.qty || '', comment: i.comment || '' }) : [{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
       setInstructions(Array.isArray(initialData.steps) ? initialData.steps.join('\n') : (initialData.steps || ''));
     }
     // build category list from built-in recipes and user recipes
@@ -147,8 +147,30 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
     setIngredients(arr);
   };
 
+  const moveRowUp = (i) => {
+    if (i <= 0) return;
+    setIngredients(prev => {
+      const arr = [...prev];
+      const tmp = arr[i - 1];
+      arr[i - 1] = arr[i];
+      arr[i] = tmp;
+      return arr;
+    });
+  };
+
+  const moveRowDown = (i) => {
+    setIngredients(prev => {
+      if (i >= prev.length - 1) return prev;
+      const arr = [...prev];
+      const tmp = arr[i + 1];
+      arr[i + 1] = arr[i];
+      arr[i] = tmp;
+      return arr;
+    });
+  };
+
   const addIngredientRow = () => {
-    setIngredients(prev => [...prev, { type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+    setIngredients(prev => [...prev, { type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
   };
 
   const addSubtitleRow = () => {
@@ -202,7 +224,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       source,
       ingredients: ingredients.filter(i => i.type === 'ingredient' ? i.product_name.trim() : i.text.trim()).map(i => {
         if (i.type === 'ingredient') {
-          return { product_name: i.product_name.trim(), unit: i.unit.trim(), amount: parseFloat(i.amount) || 0 };
+          return { product_name: i.product_name.trim(), unit: i.unit.trim(), amount: parseFloat(i.amount) || 0, comment: (i.comment || '').trim() };
         } else {
           return { type: 'subtitle', text: i.text.trim() };
         }
@@ -347,7 +369,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
           <h2>{editMode ? 'עדכון מתכון' : hebrew.addRecipe}</h2>
           <button
             className="close-button"
-            onClick={() => {
+              onClick={() => {
                 setShowForm(false);
               setError('');
               setMessage('');
@@ -361,7 +383,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               setServings('');
               setDifficulty('easy');
               setSource('');
-              setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+              setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
               setInstructions('');
                 if (editMode && onCancel) onCancel();
             }}
@@ -432,16 +454,23 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
           <div className="form-group">
             <label>{hebrew.ingredientsList}</label>
             {ingredients.map((ing, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <div key={i} className="ingredient-row" style={{ marginBottom: 8 }}>
                 {ing.type === 'ingredient' ? (
                   <>
                     <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
                     <input placeholder="כמות" type="number" style={{ width: 80 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} min="0" step="0.01" />
                     <input placeholder='יחידה / גרם / מ"ל...' style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
+                    <input placeholder="הערה" style={{ width: 160 }} value={ing.comment} onChange={e => handleIngredientChange(i, 'comment', e.target.value)} />
                   </>
                 ) : (
                   <input placeholder="כותרת חלק (למשל: לבצק)" style={{ flex: 1 }} value={ing.text} onChange={e => handleIngredientChange(i, 'text', e.target.value)} />
                 )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <button type="button" title="הזז למעלה" onClick={() => moveRowUp(i)} style={{ padding: '2px 6px' }}>▲</button>
+                  <button type="button" title="הזז למטה" onClick={() => moveRowDown(i)} style={{ padding: '2px 6px' }}>▼</button>
+                </div>
+
                 <button type="button" className="delete-ingredient" aria-label="הסר שורה" onClick={() => removeIngredientRow(i)}>–</button>
               </div>
             ))}
@@ -478,7 +507,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               setServings('');
               setDifficulty('easy');
               setSource('');
-              setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+              setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
               setInstructions('');
             }}>{hebrew.cancel}</button>
           </div>
