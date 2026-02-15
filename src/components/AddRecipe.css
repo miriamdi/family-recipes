@@ -72,6 +72,14 @@
   flex: 0 0 120px;
 }
 
+.amount-fraction {
+  color: #666;
+  font-size: 0.85rem;
+  margin-left: 6px;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+
 .modal-header {
   display: flex;
   justify-content: space-between;

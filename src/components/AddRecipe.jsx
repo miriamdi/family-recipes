@@ -3,6 +3,7 @@ import { hebrew } from '../data/hebrew';
 import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
+import { formatAmountToFraction } from '../lib/formatUtils';
 
 export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, userLoading, editMode = false, initialData = null, onSave = null, onCancel = null }) {
   const [showForm, setShowForm] = useState(false);
@@ -459,6 +460,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                   <>
                     <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
                     <input placeholder="כמות" type="number" style={{ width: 80 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} min="0" step="0.01" />
+                    <span className="amount-fraction" aria-hidden="true">{ing.amount !== '' && ing.amount != null && !isNaN(Number(ing.amount)) ? formatAmountToFraction(Number(ing.amount)) : ''}</span>
                     <input placeholder='יחידה / גרם / מ"ל...' style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
                     <input placeholder="הערה [אם יש]" style={{ width: 160 }} value={ing.comment} onChange={e => handleIngredientChange(i, 'comment', e.target.value)} />
                   </>

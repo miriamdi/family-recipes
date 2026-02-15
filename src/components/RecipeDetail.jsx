@@ -7,6 +7,7 @@ import './RecipeDetail.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { processImageForUpload } from '../lib/imageUtils';
 import { extractLeadingEmoji } from '../lib/emojiUtils';
+import { formatAmountToFraction } from '../lib/formatUtils';
 import ImageUploader from './ImageUploader';
 import ImageGallery from './ImageGallery';
 import AddRecipe from './AddRecipe';
@@ -141,7 +142,7 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
     if (ing.type === 'subtitle') return ing.text; // subtitle
 
     // new ingredient: render as "amount [unit] product_name"
-    const amount = ing.amount || ing.qty || '';
+    const amount = (ing.amount != null ? ing.amount : (ing.qty != null ? ing.qty : ''));
     const unit = ing.unit || '';
     const name = ing.product_name || ing.name || '';
 
@@ -150,7 +151,9 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
 
     // Build parts while avoiding extra spaces
     const parts = [];
-    if (amount) parts.push(amount);
+    // format amount to friendly fraction when numeric
+    const amtStr = (amount !== '' && !isNaN(Number(amount))) ? formatAmountToFraction(Number(amount)) : (amount || '');
+    if (amtStr) parts.push(amtStr);
     if (showUnit) parts.push(unit);
     if (name) parts.push(name);
 
