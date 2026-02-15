@@ -32,6 +32,12 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   const [unitSuggestionsAll, setUnitSuggestionsAll] = useState([]);
   const [displayedUnitSuggestions, setDisplayedUnitSuggestions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  // Import-from-text improved state
+  const [showImport, setShowImport] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState('');
+  const [parsedPreview, setParsedPreview] = useState(null);
+  const [previewText, setPreviewText] = useState('');
 
   useEffect(() => {
     // If used in edit mode, prefill fields from initialData and show the form
@@ -158,6 +164,231 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       const filtered = value ? master.filter(u => u.toLowerCase().includes(value.toLowerCase())) : master;
       setDisplayedUnitSuggestions(filtered);
     }
+  };
+
+  // --- Improved import/parsing helpers ---
+  const handleFileUpload = async (file) => {
+    setImportError('');
+    setParsedPreview(null);
+    if (!file) return;
+    try {
+      const txt = await file.text();
+      setImportText(txt);
+    } catch (err) {
+      setImportError('שגיאה בקריאת הקובץ');
+    }
+  };
+
+  const normalize = (s) => s.replace(/\t/g, ' ').replace(/\u00A0/g, ' ').trim();
+
+  const parseIngredientLine = (line) => {
+    let l = normalize(line).replace(/^[-*•\s]+/, '');
+    // Try to extract amount (1 1/2, 1/2, 2.5, 2)
+    const amountRe = /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?)/;
+    let amount = '';
+    const m = l.match(amountRe);
+    if (m) {
+      amount = m[0].replace(',', '.');
+      l = l.slice(m[0].length).trim();
+    }
+
+    // Next token might be unit (short). If unit exists but no explicit amount, assume amount = 1
+    let unit = '';
+    const tokens = l.split(/\s+/);
+    if (tokens.length >= 1) {
+      const maybeUnit = tokens[0].replace(/[.,;:]$/,'');
+      const knownUnits = ['g','gr','gram','grams','kg','cup','cups','tbsp','tablespoon','tsp','teaspoon','ml','l','ltr','מ"ל','מל','גרם','כוס','כפית','כפות','חתיכה','פרוסה','כף'];
+      if (knownUnits.includes(maybeUnit.toLowerCase())) {
+        unit = tokens.shift();
+        l = tokens.join(' ');
+        if (!amount) amount = '1';
+      } else {
+        // try to find a unit anywhere in the tokens (e.g. "שמן כף" or "ביצה כ" )
+        for (let i = 0; i < tokens.length; i++) {
+          const t = tokens[i].replace(/[.,;:]$/,'');
+          if (knownUnits.includes(t.toLowerCase())) {
+            unit = tokens.splice(i, 1)[0];
+            l = tokens.join(' ');
+            if (!amount) amount = '1';
+            break;
+          }
+        }
+      }
+    }
+
+    // Separate comment inside parentheses or after comma
+    let comment = '';
+    const paren = l.match(/\(([^)]+)\)/);
+    if (paren) {
+      comment = paren[1].trim();
+      l = l.replace(/\([^)]*\)/g, '').trim();
+    } else if (l.includes(',')) {
+      const parts = l.split(',');
+      l = parts.shift().trim();
+      comment = parts.join(',').trim();
+    }
+
+    return { type: 'ingredient', product_name: l, unit, amount, comment };
+  };
+
+  const parseRecipeText = (text) => {
+    setImportError('');
+    setParsedPreview(null);
+    setPreviewText(text || '');
+    if (!text || !text.trim()) {
+      setImportError('אין טקסט לייבא');
+      return null;
+    }
+
+    const rawLinesAll = text.split(/\r?\n/);
+    const rawLines = rawLinesAll.map(l => l.trim()).filter(Boolean);
+    if (!rawLines.length) {
+      setImportError('אין טקסט תקף');
+      return null;
+    }
+
+    const headerIs = (line) => {
+      if (!line) return null;
+      const l = line.trim();
+      if (/^(?:שם|title)\s*[:\-]/i.test(l)) return 'title';
+      if (/^(?:מנות|servings)\s*[:\-]/i.test(l)) return 'servings';
+      if (/^(?:זמן הכנה|prep(?: time)?|זמן|time)\s*[:\-]/i.test(l)) return 'time';
+      if (/^(?:סה\\"כ|total|cook(?: time)?)\s*[:\-]/i.test(l)) return 'total';
+      if (/^(?:מצרכים|מרכיבים|ingredients)\s*[:\-]/i.test(l)) return 'ingredients';
+      if (/^(?:הוראות|אופן הכנה|הוראות הכנה|instructions|steps)\s*[:\-]/i.test(l)) return 'steps';
+      return null;
+    };
+
+    let title = '';
+    let ingLines = [];
+    let stepLines = [];
+    let foundServings = '';
+    let foundPrep = '';
+    let foundTotal = '';
+
+    let currentSection = null;
+    for (let i = 0; i < rawLinesAll.length; i++) {
+      const line = rawLinesAll[i];
+      const h = headerIs(line);
+      if (h) {
+        currentSection = h;
+        const after = line.split(/[:\-]/).slice(1).join(':').trim();
+        if (after) {
+          if (h === 'title') title = after;
+          if (h === 'servings') foundServings = (after.match(/\d+/) || [''])[0];
+          if (h === 'time') foundPrep = (after.match(/\d+/) || [''])[0];
+          if (h === 'total') foundTotal = (after.match(/\d+/) || [''])[0];
+        }
+        continue;
+      }
+      if (!currentSection) continue;
+      if (currentSection === 'title') {
+        if (!title) title = line.trim();
+      } else if (currentSection === 'ingredients') {
+        if (line.trim()) ingLines.push(line.trim());
+      } else if (currentSection === 'steps') {
+        if (line.trim()) stepLines.push(line.trim());
+      } else if (currentSection === 'servings') {
+        if (!foundServings) foundServings = (line.match(/\d+/) || [''])[0];
+      } else if (currentSection === 'time') {
+        if (!foundPrep) foundPrep = (line.match(/\d+/) || [''])[0];
+      } else if (currentSection === 'total') {
+        if (!foundTotal) foundTotal = (line.match(/\d+/) || [''])[0];
+      }
+    }
+
+    const hadExplicitSections = Boolean(title || ingLines.length || stepLines.length || foundServings || foundPrep || foundTotal);
+
+    let parsedIngredients = [];
+    let parsedSteps = [];
+    if (hadExplicitSections && (ingLines.length || stepLines.length || title)) {
+      parsedIngredients = ingLines.map(parseIngredientLine);
+      parsedSteps = stepLines.map(s => s.replace(/^\d+\.\s*/, '').trim());
+    } else {
+      const isIngredientsHeader = (s) => /^(ingredients|מצרכים|מרכיבים)/i.test(s);
+      const isStepsHeader = (s) => /^(instructions|steps|אופן הכנה|הוראות|אופן ההכנה)/i.test(s);
+
+      let titleCandidate = rawLines[0];
+      if (isIngredientsHeader(titleCandidate) || isStepsHeader(titleCandidate)) {
+        titleCandidate = rawLines.slice(0, 4).find(l => !isIngredientsHeader(l) && !isStepsHeader(l)) || rawLines[0];
+      }
+      title = titleCandidate || title;
+
+      let ingStart = -1, ingEnd = -1, stepsStart = -1;
+      rawLines.forEach((ln, idx) => {
+        if (isIngredientsHeader(ln)) { if (ingStart === -1) ingStart = idx + 1; }
+        if (isStepsHeader(ln)) { if (stepsStart === -1) stepsStart = idx + 1; if (ingStart !== -1 && ingEnd === -1) ingEnd = idx - 1; }
+      });
+
+      rawLines.forEach(l => {
+        const mS = l.match(/(?:servings|מנות)[:\s]*([0-9]+)/i);
+        if (mS) foundServings = mS[1];
+        const mPrep = l.match(/(?:prep(?: time)?|זמן עבודה|הכנה)[:\s]*([0-9]+)/i);
+        if (mPrep) foundPrep = mPrep[1];
+        const mCook = l.match(/(?:cook(?: time)?|total|זמן כולל|סך)[:\s]*([0-9]+)/i);
+        if (mCook) foundTotal = mCook[1];
+      });
+
+      if (ingStart === -1) {
+        const cand = rawLines.map((l, idx) => ({ l, idx })).filter(({ l }) => /^[-*•\d\s]/.test(l) || /\d+\s*(g|gr|kg|cup|כוס|גרם|מ"ל)/i.test(l));
+        if (cand.length) { ingStart = cand[0].idx; ingEnd = cand[cand.length - 1].idx; }
+      }
+      if (ingStart !== -1 && ingEnd === -1) ingEnd = Math.min(rawLines.length - 1, ingStart + 200);
+
+      if (stepsStart === -1) {
+        if (ingEnd !== -1 && ingEnd + 1 < rawLines.length) stepsStart = ingEnd + 1;
+        else {
+          const sIdx = rawLines.findIndex(l => /^\d+\./.test(l) || /^[ivx]+\./i.test(l));
+          if (sIdx !== -1) stepsStart = sIdx;
+        }
+      }
+
+      const ingredientLines = (ingStart !== -1 && ingEnd !== -1) ? rawLines.slice(ingStart, ingEnd + 1) : [];
+      const stepLinesFallback = (stepsStart !== -1) ? rawLines.slice(stepsStart) : [];
+
+      parsedIngredients = ingredientLines.length ? ingredientLines.map(parseIngredientLine) : [];
+      parsedSteps = stepLinesFallback.length ? stepLinesFallback.map(s => s.replace(/^\d+\.\s*/, '').trim()) : [];
+    }
+
+    const parsed = { title: title || '', ingredients: parsedIngredients, steps: parsedSteps, servings: foundServings, prep: foundPrep, total: foundTotal };
+    setParsedPreview(parsed);
+
+    const buildPreviewText = (p) => {
+      const lines = [];
+      if (p.title) lines.push(`שם: ${p.title}`);
+      if (p.servings) lines.push(`מנות: ${p.servings}`);
+      if (p.prep) lines.push(`זמן הכנה: ${p.prep}`);
+      if (p.total) lines.push(`סה"כ: ${p.total}`);
+      if (lines.length) lines.push('');
+      lines.push('מצרכים:');
+      if (p.ingredients && p.ingredients.length) {
+        p.ingredients.forEach(ing => {
+          const amt = ing.amount ? ing.amount + ' ' : '';
+          const u = ing.unit ? ing.unit + ' ' : '';
+          const c = ing.comment ? ` (${ing.comment})` : '';
+          lines.push(`${amt}${u}${ing.product_name}${c}`.trim());
+        });
+      }
+      lines.push('');
+      lines.push('הוראות:');
+      if (p.steps && p.steps.length) p.steps.forEach(s => lines.push(s));
+      return lines.join('\n');
+    };
+
+    setPreviewText(buildPreviewText(parsed));
+    return parsed;
+  };
+
+  const applyParsedPreview = (parsed) => {
+    const p = parsed || parsedPreview;
+    if (!p) return;
+    setRecipeName(p.title || '');
+    if (p.ingredients && p.ingredients.length) setIngredients(p.ingredients);
+    if (p.steps && p.steps.length) setInstructions(p.steps.join('\n'));
+    if (p.servings) setServings(p.servings);
+    if (p.prep) setWorkTimeMinutes(p.prep);
+    if (p.total) setTotalTimeMinutes(p.total);
+    setShowImport(false);
   };
 
   const moveRowUp = (i) => {
@@ -402,6 +633,37 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
         {error && <div className={styles.errorMessage}>{error}</div>}
 
         <form className={styles.form} onSubmit={handleSubmit}>
+          <div className={styles.formGroup}>
+            <label>ייבוא מתכון מטקסט / קובץ</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <button type="button" className={styles.addIngredient} onClick={() => { setShowImport(s => !s); setParsedPreview(null); }}>{showImport ? 'הסתרת ייבוא' : 'ייבא מטקסט'}</button>
+              <input type="file" accept=".txt" onChange={e => handleFileUpload(e.target.files && e.target.files[0])} />
+            </div>
+            {showImport && (
+              <>
+                <textarea placeholder="נא להדביק כאן את הטקסט של המתכון" value={importText} onChange={e => setImportText(e.target.value)} rows={6} />
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <button type="button" className={styles.addIngredient} onClick={() => parseRecipeText(importText)}>פענח והצג תצוגה מקדימה</button>
+                  <button type="button" className={styles.cancelButton} onClick={() => { setImportText(''); setImportError(''); setParsedPreview(null); }}>נקה</button>
+                </div>
+                {importError && <div className={styles.errorMessage} style={{ marginTop: 6 }}>{importError}</div>}
+                {parsedPreview && (
+                  <div style={{ border: '1px solid #ddd', padding: 8, marginTop: 8 }}>
+                    <strong>תצוגה מקדימה (טקסט עריכה):</strong>
+                    <div style={{ marginTop: 6 }}>
+                      <textarea rows={12} style={{ width: '100%' }} value={previewText} onChange={e => setPreviewText(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button type="button" className={styles.addIngredient} onClick={() => parseRecipeText(previewText)}>פענח/עדכן תצוגה</button>
+                      <button type="button" className={styles.submitButton} onClick={() => { const parsed = parseRecipeText(previewText); if (parsed) applyParsedPreview(parsed); }}>החל לטופס</button>
+                      <button type="button" className={styles.cancelButton} onClick={() => { setParsedPreview(null); setPreviewText(''); }}>ביטול תצוגה</button>
+                    </div>
+                    <div style={{ marginTop: 8, color: '#666' }}>ערוך את הטקסט לפי הצורך (כותרת, מצרכים בשורות, הוראות בשורות). לחץ "פענח/עדכן תצוגה" כדי לעבד את הטקסט מחדש.</div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
           <div className={styles.formGroup}>
             <label>{hebrew.recipeName}</label>
             <div className={styles.nameRow}>
