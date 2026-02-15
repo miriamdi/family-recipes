@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { hebrew } from '../data/hebrew';
 import AddRecipe from './AddRecipe';
-import './RecipeList.css';
+import styles from './RecipeList.module.css';
+import Skeleton from './Skeleton';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { extractLeadingEmoji } from '../lib/emojiUtils';
 
 export default function RecipeList({ onSelectRecipe, user, displayName, userLoading }) {
   // start empty — when Supabase is configured we'll load DB results; otherwise load local fallback
   const [allRecipes, setAllRecipes] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [recipeImages, setRecipeImages] = useState({});  // recipe_id -> array of images
   const [reactions, setReactions] = useState({});
   const [sortBy, setSortBy] = useState('category');
@@ -78,6 +80,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
         }));
 
         setAllRecipes(mapped);
+        setLoading(false);
         return;
       }
     } catch (err) {
@@ -91,6 +94,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
     // Local fallback: empty list (not importing recipes.json—app uses localStorage or Supabase only)
     setAllRecipes([]);
     setRecipeImages({});
+    setLoading(false);
   };
 
   const handleRecipeAdded = (newRecipe, opts = { refetch: false }) => {
@@ -180,16 +184,16 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
   };
 
   return (
-    <div className="recipe-list">
+    <div className={styles.recipeList}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <Link to="/proposals" style={{ fontWeight: 'bold', color: '#2d7ff9', textDecoration: 'underline', fontSize: 16 }}>
+        <Link to="/proposals" style={{ fontWeight: '700', color: 'var(--accent)', textDecoration: 'underline', fontSize: 16 }}>
           הצעות לשיפור הבלוג
         </Link>
       </div>
-      <h1>{hebrew.title}</h1>
-      <p className="subtitle">{hebrew.subtitle}</p>
+      <h1 className={styles.title}>{hebrew.title}</h1>
+      <p className={styles.subtitle}>{hebrew.subtitle}</p>
 
-      <div className="list-controls">
+      <div className={styles.listControls}>
         {userLoading ? (
           <div style={{ textAlign: 'center', margin: '2em 0', fontSize: '1.2em' }}>טוען נתוני התחברות...</div>
         ) : user ? (
@@ -206,9 +210,9 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
           </div>
         )}
 
-        <div className="sort-container">
-          <label>סדר לפי:</label>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+        <div className={styles.sortContainer}>
+          <label className={styles.sortLabel}>סדר לפי:</label>
+          <select className={styles.sortSelect} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
             <option value="category">קטגוריה</option>
             <option value="newest">חדש ביותר</option>
             <option value="name">שם (א-ת)</option>
@@ -216,7 +220,10 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
         </div>
       </div>
 
-      <div className="recipes-grid">
+      {loading ? (
+        <Skeleton count={6} />
+      ) : (
+        <div className={styles.recipesGrid}>
         {allRecipes.map((recipe) => {
           const r = reactions[recipe.id] || { likes: 0 };
           // Get preview image from recipe_images table
@@ -226,69 +233,40 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
           const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
 
           return (
-            <Link
-              to={`/recipe/${recipe.id}`}
-              key={recipe.id}
-              className="recipe-card"
-              style={{ textDecoration: 'none', color: 'inherit' }}
-            >
+            <Link to={`/recipe/${recipe.id}`} key={recipe.id} className={styles.recipeCard}>
               {previewImage ? (
-                <div style={{ marginBottom: 8, height: 120, overflow: 'hidden', borderRadius: '8px 8px 0 0', position: 'relative' }}>
+                <div className={styles.previewImage}>
                   <img src={previewImage.image_url} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  {/* Show uploader name on image */}
                   {previewImage.uploaded_by_user_name && (
-                    <div style={{
-                      position: 'absolute',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      background: 'rgba(0, 0, 0, 0.5)',
-                      color: 'white',
-                      padding: '2px 6px',
-                      fontSize: 11,
-                      textAlign: 'right'
-                    }}>
-                      {previewImage.uploaded_by_user_name}
-                    </div>
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.45)', color: 'white', padding: '4px 8px', fontSize: 12, textAlign: 'right' }}>{previewImage.uploaded_by_user_name}</div>
                   )}
                 </div>
               ) : titleEmoji ? (
-                <div style={{ marginBottom: 8, height: 120, overflow: 'hidden', borderRadius: '8px 8px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '64px', background: '#f5f5f5' }}>
-                  {titleEmoji}
-                </div>
+                <div className={styles.previewEmoji}>{titleEmoji}</div>
               ) : null}
-              <h3>{recipe.title}</h3>
-              <p className="recipe-description">{recipe.description}</p>
 
-              <div className="recipe-meta">
-                <span>
-                  ⏱️ {Number(recipe.prepTime || 0) + Number(recipe.cookTime || 0)} דקות
-                </span>
+              <h3 className={styles.cardTitle}>{recipe.title}</h3>
+              <p className={styles.recipeDescription}>{recipe.description}</p>
+
+              <div className={styles.recipeMeta}>
+                <span>⏱️ {recipe.cookTime ? `${recipe.cookTime} דקות` : (recipe.prepTime ? `${recipe.prepTime} דקות` : '—')}</span>
                 <span>👥 {recipe.servings}</span>
               </div>
 
               {recipe.profiles?.display_name && (
-                <div
-                  className="recipe-author"
-                  style={{ fontSize: 12, opacity: 0.7, marginTop: 4 }}
-                >
-                  נוסף ע״י {recipe.profiles.display_name}
-                </div>
+                <div className={styles.author}>נוסף ע״י {recipe.profiles.display_name}</div>
               )}
 
               <div style={{ marginTop: 8 }}>
-                <button
-                  onClick={(e) => handleReaction(e, recipe.id)}
-                  className="reaction-button"
-                  style={{ opacity: r.liked ? 1 : 0.6 }}
-                >
+                <button onClick={(e) => handleReaction(e, recipe.id)} className={styles.reactionButton} style={{ opacity: r.liked ? 1 : 0.6 }} aria-pressed={!!r.liked} aria-label={`לאהוב ${recipe.title}`}>
                   👍 {r.likes || 0}
                 </button>
               </div>
             </Link>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
