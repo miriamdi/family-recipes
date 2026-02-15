@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { hebrew } from '../data/hebrew';
-import './AddRecipe.css';
+import styles from './AddRecipe.module.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
 import { formatAmountToFraction, parseAmountToDecimal } from '../lib/formatUtils';
@@ -362,7 +362,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
   if (!showForm) {
     return (
-      <button className="add-recipe-button" onClick={() => setShowForm(true)}>
+      <button className={styles.addRecipeButton} onClick={() => setShowForm(true)}>
         {hebrew.addRecipe}
       </button>
     );
@@ -370,11 +370,12 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
   return (
     <div className="add-recipe-modal">
-      <div className="modal-content">
-        <div className="modal-header">
+      <div className={styles.addRecipeModal}>
+      <div className={styles.modalContent}>
+        <div className={styles.modalHeader}>
           <h2>{editMode ? 'עדכון מתכון' : hebrew.addRecipe}</h2>
           <button
-            className="close-button"
+            className={styles.closeButton}
               onClick={() => {
                 setShowForm(false);
               setError('');
@@ -398,21 +399,21 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
           </button>
         </div>
 
-        {message && <div className="success-message">{message}</div>}
-        {error && <div className="error-message">{error}</div>}
+        {message && <div className={styles.successMessage}>{message}</div>}
+        {error && <div className={styles.errorMessage}>{error}</div>}
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
+        <form className={styles.form} onSubmit={handleSubmit}>
+          <div className={styles.formGroup}>
             <label>{hebrew.recipeName}</label>
-            <div className="name-row">
-              <div className="input-with-emoji-wrapper">
-                <span className="input-emoji-prefix" aria-hidden="true">{image}</span>
-                <input className="recipe-name-input" type="text" value={recipeName} onChange={e => setRecipeName(e.target.value)} />
+            <div className={styles.nameRow}>
+              <div className={styles.inputWithEmojiWrapper}>
+                <span className={styles.inputEmojiPrefix} aria-hidden="true">{image}</span>
+                <input className={styles.recipeNameInput} type="text" value={recipeName} onChange={e => setRecipeName(e.target.value)} aria-label={hebrew.recipeName} />
               </div>
             </div>
           </div>
 
-          <div className="form-group">
+          <div className={styles.formGroup}>
             <label>{hebrew.categoryLabel}</label>
             <input
               type="text"
@@ -420,13 +421,14 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               onChange={e => setCategory(e.target.value)}
               list="category-suggestions"
               placeholder=" נא לבחור קטגוריה קיימת או להכניס קטגוריה חדשה"
+              aria-autocomplete="list"
             />
             <datalist id="category-suggestions">
               {categorySuggestions.map((cat, idx) => <option key={idx} value={cat} />)}
             </datalist>
           </div>
 
-          <div className="form-row">
+          <div className={styles.formRow}>
             <div className="form-group">
               <label>זמן עבודה (דקות)</label>
               <input type="number" value={workTimeMinutes} onChange={e => setWorkTimeMinutes(e.target.value)} min="0" />
@@ -437,7 +439,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
             </div>
           </div>
 
-          <div className="form-row">
+          <div className={styles.formRow}>
             <div className="form-group">
               <label>{hebrew.servingsLabel}</label>
               <input type="number" value={servings} onChange={e => setServings(e.target.value)} min="1" />
@@ -457,10 +459,10 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
             <input type="text" value={source} onChange={e => setSource(e.target.value)} />
           </div>
 
-          <div className="form-group">
+          <div className={styles.formGroup}>
             <label>{hebrew.ingredientsList}</label>
             {ingredients.map((ing, i) => (
-              <div key={i} className="ingredient-row" style={{ marginBottom: 8 }}>
+              <div key={i} className={styles.ingredientRow} style={{ marginBottom: 8 }}>
                 {ing.type === 'ingredient' ? (
                   <>
                     <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} onInput={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
@@ -490,7 +492,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                   <button type="button" title="הזז למטה" onClick={() => moveRowDown(i)} style={{ padding: '2px 6px' }}>▼</button>
                 </div>
 
-                <button type="button" className="delete-ingredient" aria-label="הסר שורה" onClick={() => removeIngredientRow(i)}>–</button>
+                <button type="button" className={styles.deleteIngredient} aria-label="הסר שורה" onClick={() => removeIngredientRow(i)}>–</button>
               </div>
             ))}
             <datalist id="product-suggestions">
@@ -504,19 +506,19 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               ))}
             </datalist>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="add-ingredient" onClick={addIngredientRow}>הוספת מצרך</button>
-              <button type="button" className="add-ingredient" onClick={addSubtitleRow}>הוספת כותרת חלק</button>
+              <button type="button" className={styles.addIngredient} onClick={addIngredientRow}>הוספת מצרך</button>
+              <button type="button" className={styles.addIngredient} onClick={addSubtitleRow}>הוספת כותרת חלק</button>
             </div>
           </div>
 
-          <div className="form-group">
+          <div className={styles.formGroup}>
             <label>{hebrew.stepsList}</label>
             <textarea value={instructions} onChange={e => setInstructions(e.target.value)} rows={6} />
           </div>
 
-          <div className="form-buttons">
-            <button type="submit" className="submit-button" disabled={submitting}>{submitting ? 'שולח…' : (editMode ? 'עדכון מתכון' : hebrew.submit)}</button>
-            <button type="button" className="cancel-button" onClick={() => { 
+          <div className={styles.formButtons}>
+            <button type="submit" className={styles.submitButton} disabled={submitting}>{submitting ? 'שולח…' : (editMode ? 'עדכון מתכון' : hebrew.submit)}</button>
+            <button type="button" className={styles.cancelButton} onClick={() => { 
               setShowForm(false); 
               setError(''); 
               setMessage(''); 
@@ -535,6 +537,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
             }}>{hebrew.cancel}</button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );
