@@ -1,0 +1,61 @@
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --muted: #7f8c8d;
+  --text: #2c3e50;
+  --brand: #e74c3c;
+  --accent: #2d7ff9;
+  --success: #27ae60;
+  --danger: #e74c3c;
+  --shadow: 0 4px 18px rgba(44, 62, 80, 0.08);
+  --radius: 10px;
+  --gap: 16px;
+  --max-width: 1200px;
+  --focus: 3px solid rgba(45,127,249,0.18);
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.45;
+  direction: rtl;
+}
+
+/* Utility layout */
+.container {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* Accessible focus styles */
+:focus {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: 6px;
+}
+
+/* Buttons baseline */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-primary { background: var(--brand); color: white; }
+.btn-ghost { background: transparent; color: var(--accent); border: 1px solid rgba(45,127,249,0.08); }
+
+.visuallyHidden { position: absolute !important; height: 1px; width: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px); white-space: nowrap; }

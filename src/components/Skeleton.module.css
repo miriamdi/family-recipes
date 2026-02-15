@@ -1,0 +1,35 @@
+.skeletonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.skeletonCard {
+  background: linear-gradient(90deg, #f6f6f7 0%, #ededee 50%, #f6f6f7 100%);
+  border-radius: 12px;
+  min-height: 180px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  animation: pulse 1.2s infinite ease-in-out;
+}
+
+.skeletonLine {
+  height: 14px;
+  background: rgba(255,255,255,0.4);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.skeletonImage {
+  height: 110px;
+  width: 100%;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.6);
+  margin-bottom: 12px;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: translateY(0); }
+  50% { opacity: 0.85; transform: translateY(-2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}

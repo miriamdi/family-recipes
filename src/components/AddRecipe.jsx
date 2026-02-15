@@ -369,8 +369,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   }
 
   return (
-    <div className="add-recipe-modal">
-      <div className={styles.addRecipeModal}>
+    <div className={styles.addRecipeModal}>
       <div className={styles.modalContent}>
         <div className={styles.modalHeader}>
           <h2>{editMode ? 'עדכון מתכון' : hebrew.addRecipe}</h2>
@@ -428,23 +427,23 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
             </datalist>
           </div>
 
-          <div className={styles.formRow}>
-            <div className="form-group">
+            <div className={styles.formRow}>
+            <div className={styles.formGroup}>
               <label>זמן עבודה (דקות)</label>
               <input type="number" value={workTimeMinutes} onChange={e => setWorkTimeMinutes(e.target.value)} min="0" />
             </div>
-            <div className="form-group">
+            <div className={styles.formGroup}>
               <label>זמן הכנה כולל (דקות)</label>
               <input type="number" value={totalTimeMinutes} onChange={e => setTotalTimeMinutes(e.target.value)} min="0" />
             </div>
           </div>
 
           <div className={styles.formRow}>
-            <div className="form-group">
+            <div className={styles.formGroup}>
               <label>{hebrew.servingsLabel}</label>
               <input type="number" value={servings} onChange={e => setServings(e.target.value)} min="1" />
             </div>
-            <div className="form-group">
+            <div className={styles.formGroup}>
               <label>{hebrew.difficultyLabel}</label>
               <select value={difficulty} onChange={e => setDifficulty(e.target.value)}>
                 <option value="easy">קל</option>
@@ -467,7 +466,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                   <>
                     <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} onInput={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
                     <input placeholder="כמות (אפשר 1 1/4)" type="text" style={{ width: 100 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} />
-                    <span className="amount-fraction" aria-hidden="true">
+                    <span className={styles.amountFraction} aria-hidden="true">
                       {(() => {
                         const raw = (ing.amount || '').toString().trim();
                         // Show decimal only if user entered a fraction
@@ -537,7 +536,6 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
             }}>{hebrew.cancel}</button>
           </div>
         </form>
-      </div>
       </div>
     </div>
   );
