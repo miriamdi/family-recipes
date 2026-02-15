@@ -223,8 +223,24 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
       {loading ? (
         <Skeleton count={6} />
       ) : (
-        <div className={styles.recipesGrid}>
-        {allRecipes.map((recipe) => {
+        <div>
+        {sortBy === 'category' ? (
+          // Group recipes by category and render a heading for each
+          (() => {
+            const groups = {};
+            (allRecipes || []).forEach(r => {
+              const cat = (r.category || 'אחרים').trim() || 'אחרים';
+              if (!groups[cat]) groups[cat] = [];
+              groups[cat].push(r);
+            });
+            const sortedCats = Object.keys(groups).sort((a,b) => a.localeCompare(b));
+            return (
+              <div>
+                {sortedCats.map(cat => (
+                  <div key={cat} style={{ marginBottom: 24 }}>
+                    <h2 className={styles.categoryTitle}>{cat}</h2>
+                    <div className={styles.recipesGrid}>
+                      {groups[cat].map((recipe) => {
           const r = reactions[recipe.id] || { likes: 0 };
           // Get preview image from recipe_images table
           const images = recipeImages[recipe.id] || [];
@@ -232,8 +248,8 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
           // Prefer emoji from the title (new stored format). Fallback to legacy `recipe.image` emoji when present.
           const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
 
-          return (
-            <Link to={`/recipe/${recipe.id}`} key={recipe.id} className={styles.recipeCard}>
+                      return (
+                        <Link to={`/recipe/${recipe.id}`} key={recipe.id} className={styles.recipeCard}>
               {previewImage ? (
                 <div className={styles.previewImage}>
                   <img src={previewImage.image_url} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -259,9 +275,55 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
                   👍 {r.likes || 0}
                 </button>
               </div>
-            </Link>
-          );
-        })}
+                        </Link>
+                      );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()
+        ) : (
+          <div className={styles.recipesGrid}>
+            {allRecipes.map((recipe) => {
+              const r = reactions[recipe.id] || { likes: 0 };
+              const images = recipeImages[recipe.id] || [];
+              const previewImage = images.length > 0 ? getStableRandomImage(images, recipe.id) : null;
+              const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
+
+              return (
+                <Link to={`/recipe/${recipe.id}`} key={recipe.id} className={styles.recipeCard}>
+                  {previewImage ? (
+                    <div className={styles.previewImage}>
+                      <img src={previewImage.image_url} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                  ) : titleEmoji ? (
+                    <div className={styles.previewEmoji}>{titleEmoji}</div>
+                  ) : null}
+
+                  <h3 className={styles.cardTitle}>{recipe.title}</h3>
+                  <p className={styles.recipeDescription}>{recipe.description}</p>
+
+                  <div className={styles.recipeMeta}>
+                    <span>⏱️ {recipe.cookTime ? `${recipe.cookTime} דקות` : (recipe.prepTime ? `${recipe.prepTime} דקות` : '—')}</span>
+                    <span>👥 {recipe.servings}</span>
+                  </div>
+
+                  {recipe.profiles?.display_name && (
+                    <div className={styles.author}>נוסף ע״י {recipe.profiles.display_name}</div>
+                  )}
+
+                  <div style={{ marginTop: 8 }}>
+                    <button onClick={(e) => handleReaction(e, recipe.id)} className={styles.reactionButton} style={{ opacity: r.liked ? 1 : 0.6 }} aria-pressed={!!r.liked} aria-label={`לאהוב ${recipe.title}`}>
+                      👍 {r.likes || 0}
+                    </button>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
         </div>
       )}
     </div>
