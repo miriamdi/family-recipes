@@ -139,8 +139,22 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
     if (!ing) return '';
     if (typeof ing === 'string') return ing; // old format
     if (ing.type === 'subtitle') return ing.text; // subtitle
-    // new ingredient
-    return `${ing.product_name || ing.name}${ing.amount || ing.qty ? ' • ' + (ing.amount || ing.qty) : ''}${ing.unit ? ' ' + ing.unit : ''}`;
+
+    // new ingredient: render as "amount [unit] product_name"
+    const amount = ing.amount || ing.qty || '';
+    const unit = ing.unit || '';
+    const name = ing.product_name || ing.name || '';
+
+    // If unit is exactly the Hebrew word "יחידה", omit it from display
+    const showUnit = unit && unit !== 'יחידה';
+
+    // Build parts while avoiding extra spaces
+    const parts = [];
+    if (amount) parts.push(amount);
+    if (showUnit) parts.push(unit);
+    if (name) parts.push(name);
+
+    return parts.join(' ');
   };
 
   const renderIngredients = () => {

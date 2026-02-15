@@ -104,8 +104,43 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
   const handleIngredientChange = (index, key, value) => {
     const arr = [...ingredients];
+    // Products that should default to unit 'יחידה' when entered (user can still change)
+    const autoUnitProducts = new Set(['ביצה', 'ביצים', 'egg', 'eggs', 'ביצה׳']);
+    // Common fruit/vegetable keywords (matches substrings) to assume unit 'יחידה'
+    const produceKeywords = ['תפוח', 'בננה', 'גזר', 'מלפפון', 'עגבניה', 'עגבניות', 'אבוקדו', 'תפוז', 'לימון', 'חסה', 'פלפל', 'קישוא', 'תירס', 'חציל', 'סלק', 'בצל', 'שום', 'תפוחאדמה', 'תפוח אדמה', 'בטטה', 'דלעת', 'סלרי'];
+
     if (arr[index].type === 'ingredient') {
-      arr[index][key] = value;
+      if (key === 'product_name') {
+        arr[index][key] = value;
+
+        // Only auto-fill unit when the unit field is empty
+        const unitEmpty = !arr[index].unit || String(arr[index].unit).trim() === '';
+        if (unitEmpty) {
+          const norm = String(value || '').trim().toLowerCase();
+          const tokens = norm.split(/\s+/).map(t => t.replace(/[^\p{L}\p{N}]+/gu, ''));
+
+          let shouldSetUnit = false;
+          for (const t of tokens) {
+            if (!t) continue;
+            if (autoUnitProducts.has(t) || produceKeywords.some(pk => t.includes(pk))) {
+              shouldSetUnit = true;
+              break;
+            }
+            // basic plural handling: if ends with 'ים' or 'ות', check singular stem
+            if (t.endsWith('ים') || t.endsWith('ות')) {
+              const stem = t.replace(/(ים|ות)$/, '');
+              if (autoUnitProducts.has(stem) || produceKeywords.some(pk => stem.includes(pk))) {
+                shouldSetUnit = true;
+                break;
+              }
+            }
+          }
+
+          if (shouldSetUnit) arr[index].unit = 'יחידה';
+        }
+      } else {
+        arr[index][key] = value;
+      }
     } else if (arr[index].type === 'subtitle' && key === 'text') {
       arr[index].text = value;
     }
@@ -401,8 +436,8 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                 {ing.type === 'ingredient' ? (
                   <>
                     <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
-                    <input placeholder="יחידה" style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
                     <input placeholder="כמות" type="number" style={{ width: 80 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} min="0" step="0.01" />
+                    <input placeholder='יחידה / גרם / מ"ל...' style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
                   </>
                 ) : (
                   <input placeholder="כותרת חלק (למשל: לבצק)" style={{ flex: 1 }} value={ing.text} onChange={e => handleIngredientChange(i, 'text', e.target.value)} />
