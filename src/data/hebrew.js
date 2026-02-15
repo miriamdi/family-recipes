@@ -4,7 +4,7 @@ export const hebrew = {
   viewRecipe: "",
   backToRecipes: "חזרה למתכונים",
   prepTime: "זמן הכנה",
-  cookTime: "זמן אפייה",
+  cookTime: "זמן כולל",
   servings: "מנות",
   difficulty: "דרגת קושי",
   ingredients: "מצרכים",

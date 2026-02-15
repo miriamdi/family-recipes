@@ -14,8 +14,9 @@ function AuthControls({ user, setUser, displayName, setDisplayName, userLoading 
       return;
     }
 
-    const email = window.prompt('נא להכניס את האימייל שלך לקבלת לינק להתחברות');
+    let email = window.prompt('נא להכניס את האימייל שלך לקבלת לינק להתחברות');
     if (!email) return;
+    email = email.trim().toLowerCase();
 
     try {
       const { data, error } = await supabase
