@@ -39,11 +39,37 @@
   background: white;
   border-radius: 10px;
   padding: 30px;
-  max-width: 600px;
+  max-width: 900px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Ingredient row layout: allow wrapping so comment fits on smaller screens */
+.ingredient-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ingredient-row input {
+  min-width: 88px;
+}
+.ingredient-row input[placeholder="שם מוצר"] {
+  flex: 2 1 220px;
+}
+.ingredient-row input[placeholder="הערה"] {
+  width: 160px;
+  flex: 0 0 160px;
+}
+.ingredient-row input[placeholder="כמות"] {
+  width: 80px;
+  flex: 0 0 80px;
+}
+.ingredient-row input[placeholder='יחידה / גרם / מ"ל...'] {
+  width: 120px;
+  flex: 0 0 120px;
 }
 
 .modal-header {

@@ -154,7 +154,14 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
     if (showUnit) parts.push(unit);
     if (name) parts.push(name);
 
-    return parts.join(' ');
+    let result = parts.join(' ');
+    // Append comment if present (keep spacing and RTL). Use parentheses and omit if empty.
+    const comment = (ing.comment || '').toString().trim();
+    if (comment) {
+      result = `${result} (${comment})`;
+    }
+
+    return result;
   };
 
   const renderIngredients = () => {
