@@ -4,7 +4,7 @@ import './AddRecipe.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
 
-export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, userLoading }) {
+export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, userLoading, editMode = false, initialData = null, onSave = null, onCancel = null }) {
   const [showForm, setShowForm] = useState(false);
   const [recipeName, setRecipeName] = useState('');
   const [image, setImage] = useState(() => getEmojiForName(''));
@@ -29,6 +29,22 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // If used in edit mode, prefill fields from initialData and show the form
+    if (editMode && initialData) {
+      setShowForm(true);
+      setRecipeName(initialData.title || '');
+      setImage(getEmojiForName(initialData.title || ''));
+      setCategory(initialData.category || '');
+      setWorkTimeMinutes(initialData.prep_time || initialData.prepTime || '');
+      setTotalTimeMinutes(initialData.cook_time || initialData.cookTime || '');
+      setServings(initialData.servings || '');
+      // Map english difficulty back to Hebrew options
+      const diffMap = { easy: 'קל', medium: 'בינוני', hard: 'קשה' };
+      setDifficulty(diffMap[initialData.difficulty] || initialData.difficulty || 'easy');
+      setSource(initialData.source || '');
+      setIngredients(Array.isArray(initialData.ingredients) ? initialData.ingredients.map(i => i.type === 'subtitle' ? { type: 'subtitle', text: i.text } : { type: 'ingredient', product_name: i.product_name || i.name || '', unit: i.unit || '', amount: i.amount || i.qty || '' }) : [{ type: 'ingredient', product_name: '', unit: '', amount: '' }]);
+      setInstructions(Array.isArray(initialData.steps) ? initialData.steps.join('\n') : (initialData.steps || ''));
+    }
     // build category list from built-in recipes and user recipes
     const userRecipes = JSON.parse(localStorage.getItem('userRecipes') || '[]');
     const all = [...recipes, ...userRecipes];
@@ -169,54 +185,92 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
         }
 
         setSubmitting(true);
+        if (!editMode) {
+          // Use edge function for validation and insert
+          const RECIPE_SUBMIT_API = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recipe-submit`;
+          const res = await fetch(RECIPE_SUBMIT_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...payload, user_id: authUser.id, user_email: authUser.email })
+          });
 
-        // Use edge function for validation and insert
-        const RECIPE_SUBMIT_API = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recipe-submit`;
-        const res = await fetch(RECIPE_SUBMIT_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, user_id: authUser.id, user_email: authUser.email })
-        });
+          if (!res.ok) {
+            const err = await res.json();
+            setError(err.error || 'שגיאה בשמירה בשרת');
+            setSubmitting(false);
+            return;
+          }
 
-        if (!res.ok) {
-          const err = await res.json();
-          setError(err.error || 'שגיאה בשמירה בשרת');
-          setSubmitting(false);
-          return;
+          const inserted = await res.json();
+
+          const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
+
+          setMessage(hebrew.successMessage);
+          setTimeout(() => {
+            // optimistic update + ask parent to re-fetch to reconcile server state
+            onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
+            setShowForm(false);
+            setMessage('');
+            setSubmitting(false);
+          }, 800);
+        } else {
+          // EDIT MODE: update existing recipe
+          try {
+            const toUpdate = { ...payload };
+            const { data: updatedRow, error: upErr } = await supabase.from('recipes').update(toUpdate).eq('id', initialData.id).select().single();
+            if (upErr) throw upErr;
+            const uiRecipe = updatedRow ? { ...updatedRow, prepTime: updatedRow.prep_time, cookTime: updatedRow.cook_time } : null;
+            if (uiRecipe && !uiRecipe.updated_at) uiRecipe.updated_at = new Date().toISOString();
+            setMessage('המתכון עודכן בהצלחה');
+            setTimeout(() => {
+              onSave ? onSave(uiRecipe) : onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
+              setShowForm(false);
+              setMessage('');
+              setSubmitting(false);
+            }, 800);
+          } catch (editErr) {
+            console.error('Edit save failed', editErr);
+            setError(editErr?.message || 'שגיאה בעדכון המתכון');
+            setSubmitting(false);
+          }
         }
-
-        const inserted = await res.json();
-
-        const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
-
-        setMessage(hebrew.successMessage);
-        setTimeout(() => {
-          // optimistic update + ask parent to re-fetch to reconcile server state
-          onRecipeAdded(uiRecipe, { refetch: true });
-          setShowForm(false);
-          setMessage('');
-          setSubmitting(false);
-        }, 800);
       } catch (err) {
         console.error('Supabase insert unexpected error', err);
         // Fallback: try inserting directly with Supabase client (useful in dev or if functions are down)
         try {
           const { data: { user: fallbackUser } = {}, error: authErr } = await supabase.auth.getUser();
           if (!fallbackUser?.id) throw new Error('לא מזוהים - התחברו כדי לנסות שוב');
-          const toInsertFallback = { ...payload, user_id: fallbackUser.id, user_email: fallbackUser.email };
-          const { data: insertData, error: insertErr } = await supabase.from('recipes').insert(toInsertFallback).select().single();
-          if (insertErr) throw insertErr;
+          if (!editMode) {
+            const toInsertFallback = { ...payload, user_id: fallbackUser.id, user_email: fallbackUser.email };
+            const { data: insertData, error: insertErr } = await supabase.from('recipes').insert(toInsertFallback).select().single();
+            if (insertErr) throw insertErr;
 
-          const inserted = insertData || null;
-          const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
-          setMessage(hebrew.successMessage);
-          setTimeout(() => {
-            onRecipeAdded(uiRecipe, { refetch: true });
-            setShowForm(false);
-            setMessage('');
-            setSubmitting(false);
-          }, 800);
-          return;
+            const inserted = insertData || null;
+            const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
+            setMessage(hebrew.successMessage);
+            setTimeout(() => {
+              onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
+              setShowForm(false);
+              setMessage('');
+              setSubmitting(false);
+            }, 800);
+            return;
+          } else {
+            // edit mode fallback: update directly
+            const toUpdate = { ...payload };
+            const { data: updatedRow, error: upErr } = await supabase.from('recipes').update(toUpdate).eq('id', initialData.id).select().single();
+            if (upErr) throw upErr;
+            const uiRecipe = updatedRow ? { ...updatedRow, prepTime: updatedRow.prep_time, cookTime: updatedRow.cook_time } : null;
+            if (uiRecipe && !uiRecipe.updated_at) uiRecipe.updated_at = new Date().toISOString();
+            setMessage('המתכון עודכן בהצלחה');
+            setTimeout(() => {
+              onSave ? onSave(uiRecipe) : onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
+              setShowForm(false);
+              setMessage('');
+              setSubmitting(false);
+            }, 800);
+            return;
+          }
         } catch (fallbackErr) {
           console.error('Fallback insert failed', fallbackErr);
           setError(fallbackErr?.message || err?.message || 'שגיאה בשמירה בשרת');
@@ -255,11 +309,11 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
     <div className="add-recipe-modal">
       <div className="modal-content">
         <div className="modal-header">
-          <h2>{hebrew.addRecipe}</h2>
+          <h2>{editMode ? 'עדכון מתכון' : hebrew.addRecipe}</h2>
           <button
             className="close-button"
             onClick={() => {
-              setShowForm(false);
+                setShowForm(false);
               setError('');
               setMessage('');
               setRecipeName('');
@@ -274,6 +328,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               setSource('');
               setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '' }]);
               setInstructions('');
+                if (editMode && onCancel) onCancel();
             }}
           >
             ✕
@@ -373,7 +428,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
           </div>
 
           <div className="form-buttons">
-            <button type="submit" className="submit-button" disabled={submitting}>{submitting ? 'שולח…' : hebrew.submit}</button>
+            <button type="submit" className="submit-button" disabled={submitting}>{submitting ? 'שולח…' : (editMode ? 'עדכון מתכון' : hebrew.submit)}</button>
             <button type="button" className="cancel-button" onClick={() => { 
               setShowForm(false); 
               setError(''); 
