@@ -481,8 +481,12 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
 
       <div className="recipe-info">
         <div className="info-item">
+          <strong>⏱️ {hebrew.prepTimeLabel}</strong>
+          <p>{(recipe.prepTime ?? recipe.prep_time) || '-'} דקות</p>
+        </div>
+        <div className="info-item">
           <strong>⏱️ {hebrew.cookTime}</strong>
-          <p>{recipe.cookTime} דקות</p>
+          <p>{(recipe.cookTime ?? recipe.cook_time) || '-'} דקות</p>
         </div>
         <div className="info-item">
           <strong>👥 {hebrew.servings}</strong>
