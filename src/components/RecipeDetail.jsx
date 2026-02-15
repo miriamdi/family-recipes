@@ -124,6 +124,16 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
   const isOwner = user && recipe.user_email === user.email;
   const isAdmin = user && user.email === ADMIN_EMAIL;
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editPrepTime, setEditPrepTime] = useState('');
+  const [editCookTime, setEditCookTime] = useState('');
+  const [editServings, setEditServings] = useState('');
+  const [editDifficulty, setEditDifficulty] = useState('');
+  const [editIngredients, setEditIngredients] = useState('');
+  const [editSteps, setEditSteps] = useState('');
+
   const formatIngredient = (ing) => {
     if (!ing) return '';
     if (typeof ing === 'string') return ing; // old format
@@ -372,7 +382,25 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         {user && (recipe.user_email === user.email || user.email === ADMIN_EMAIL) && (
-          <button className="delete-button" onClick={handleDelete}>{hebrew.deleteRecipe}</button>
+          <>
+            <button className="delete-button" onClick={handleDelete}>{hebrew.deleteRecipe}</button>
+            <button
+              style={{ marginLeft: 8 }}
+              className="edit-button"
+              onClick={() => {
+                // initialize edit fields from current recipe
+                setEditTitle(recipe.title || '');
+                setEditDescription(recipe.description || '');
+                setEditPrepTime(recipe.prepTime || recipe.prep_time || '');
+                setEditCookTime(recipe.cookTime || recipe.cook_time || '');
+                setEditServings(recipe.servings || '');
+                setEditDifficulty(recipe.difficulty || '');
+                setEditIngredients(Array.isArray(recipe.ingredients) ? recipe.ingredients.map(i => typeof i === 'string' ? i : (i.text || i.product_name || '')).join('\n') : (recipe.ingredients || '').toString());
+                setEditSteps(Array.isArray(recipe.steps) ? recipe.steps.join('\n') : (recipe.steps || ''));
+                setIsEditing(true);
+              }}
+            >ערוך</button>
+          </>
         )}
       </div>
 
@@ -402,8 +430,52 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
               textAlign: 'right'
             }}
           >
-            מאת {recipe.proposerName || recipe.display_name || 'משתמש'} | {formatDate(recipe.created_at)}
+            מאת {recipe.proposerName || recipe.display_name || 'משתמש'} | {formatDate(recipe.created_at)}{recipe.updated_at && recipe.updated_at !== recipe.created_at ? ` | עריכה אחרונה ${formatDate(recipe.updated_at)}` : ''}
           </div>
+
+          {isEditing && (
+            <div style={{ marginTop: 12, padding: 12, border: '1px solid #ddd', borderRadius: 6 }}>
+              <h3>עריכת המתכון</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="כותרת" />
+                <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="תיאור" />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input style={{ width: 120 }} value={editPrepTime} onChange={e => setEditPrepTime(e.target.value)} placeholder="דקת הכנה" />
+                  <input style={{ width: 120 }} value={editCookTime} onChange={e => setEditCookTime(e.target.value)} placeholder="דקת בישול" />
+                  <input style={{ width: 120 }} value={editServings} onChange={e => setEditServings(e.target.value)} placeholder="מנות" />
+                  <input style={{ width: 120 }} value={editDifficulty} onChange={e => setEditDifficulty(e.target.value)} placeholder="קושי" />
+                </div>
+                <label style={{ fontSize: 12 }}>מרכיבים (כל שורה - פריט):</label>
+                <textarea value={editIngredients} onChange={e => setEditIngredients(e.target.value)} rows={4} />
+                <label style={{ fontSize: 12 }}>שלבים (כל שורה - שלב):</label>
+                <textarea value={editSteps} onChange={e => setEditSteps(e.target.value)} rows={4} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={async () => {
+                    // build updated object
+                    const updated = {
+                      ...recipe,
+                      title: editTitle,
+                      description: editDescription,
+                      prep_time: editPrepTime,
+                      cook_time: editCookTime,
+                      prepTime: editPrepTime,
+                      cookTime: editCookTime,
+                      servings: editServings,
+                      difficulty: editDifficulty,
+                      ingredients: editIngredients.split('\n').map(s => s.trim()).filter(Boolean),
+                      steps: editSteps.split('\n').map(s => s.trim()).filter(Boolean),
+                      updated_at: new Date().toISOString()
+                    };
+                    await saveUpdatedRecipe(updated);
+                    setIsEditing(false);
+                    setMessage('המתכון עודכן בהצלחה');
+                    setTimeout(() => setMessage(''), 2000);
+                  }}>שמור</button>
+                  <button onClick={() => setIsEditing(false)}>ביטול</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <p className="recipe-description">{recipe.description}</p>
         </div>
