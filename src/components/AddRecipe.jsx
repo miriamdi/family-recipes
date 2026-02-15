@@ -26,7 +26,11 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   const [categories, setCategories] = useState([]);
   const [categorySuggestions, setCategorySuggestions] = useState([]);
   const [productSuggestions, setProductSuggestions] = useState([]);
+  const [productSuggestionsAll, setProductSuggestionsAll] = useState([]);
+  const [displayedProductSuggestions, setDisplayedProductSuggestions] = useState([]);
   const [unitSuggestions, setUnitSuggestions] = useState([]);
+  const [unitSuggestionsAll, setUnitSuggestionsAll] = useState([]);
+  const [displayedUnitSuggestions, setDisplayedUnitSuggestions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -49,6 +53,38 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
     // build category list from provided `recipes` only (DB-sourced)
     const cats = Array.from(new Set((recipes || []).map(r => r.category).filter(Boolean)));
     setCategories(cats);
+
+    // Also build suggestions for products/units from the provided `recipes` as a fallback
+    try {
+      const products = new Set();
+      const units = new Set();
+      (recipes || []).forEach(r => {
+        if (!r || !Array.isArray(r.ingredients)) return;
+        r.ingredients.forEach(item => {
+          if (!item) return;
+          // skip explicit subtitle rows, otherwise treat as ingredient entry
+          if (item.type === 'subtitle') return;
+          const pname = String(item.product_name ?? item.name ?? '').trim();
+          const unit = String(item.unit ?? '').trim();
+          if (pname) products.add(pname.toLowerCase());
+          if (unit) units.add(unit.toLowerCase());
+        });
+      });
+      const prodList = Array.from(products).map(p => p.charAt(0).toUpperCase() + p.slice(1));
+      const unitList = Array.from(units).map(u => u.charAt(0).toUpperCase() + u.slice(1));
+      if (prodList.length) {
+        setProductSuggestions(prodList);
+        setProductSuggestionsAll(prodList);
+        setDisplayedProductSuggestions(prodList);
+      }
+      if (unitList.length) {
+        setUnitSuggestions(unitList);
+        setUnitSuggestionsAll(unitList);
+        setDisplayedUnitSuggestions(unitList);
+      }
+    } catch (err) {
+      // ignore
+    }
   }, [recipes]);
 
   useEffect(() => {
@@ -65,11 +101,8 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   useEffect(() => {
     // Only fetch suggestions from Supabase (use DB as single source of truth)
     const fetchSuggestions = async () => {
+      // If Supabase not configured, leave fallback suggestions (from `recipes`) intact
       if (!useSupabase || !supabase) {
-        // Clear suggestions when DB is not available
-        setCategorySuggestions([]);
-        setProductSuggestions([]);
-        setUnitSuggestions([]);
         return;
       }
       try {
@@ -83,13 +116,22 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
         (ingData || []).forEach(r => {
           if (!r || !Array.isArray(r.ingredients)) return;
           r.ingredients.forEach(item => {
-            if (!item || item.type !== 'ingredient') return;
-            if (item.product_name) products.add(item.product_name.trim().toLowerCase());
-            if (item.unit) units.add(item.unit.trim().toLowerCase());
+            if (!item) return;
+            if (item.type === 'subtitle') return;
+            const pname = String(item.product_name ?? item.name ?? '').trim();
+            const unit = String(item.unit ?? '').trim();
+            if (pname) products.add(pname.toLowerCase());
+            if (unit) units.add(unit.toLowerCase());
           });
         });
-        setProductSuggestions(Array.from(products).map(p => p.charAt(0).toUpperCase() + p.slice(1)));
-        setUnitSuggestions(Array.from(units).map(u => u.charAt(0).toUpperCase() + u.slice(1)));
+        const prodList = Array.from(products).map(p => p.charAt(0).toUpperCase() + p.slice(1));
+        const unitList = Array.from(units).map(u => u.charAt(0).toUpperCase() + u.slice(1));
+          setProductSuggestions(prodList);
+          setProductSuggestionsAll(prodList);
+          setDisplayedProductSuggestions(prodList);
+          setUnitSuggestions(unitList);
+          setUnitSuggestionsAll(unitList);
+          setDisplayedUnitSuggestions(unitList);
       } catch (err) {
         console.warn('Failed to fetch suggestions from Supabase:', err);
         setCategorySuggestions([]);
@@ -98,18 +140,24 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       }
     };
     fetchSuggestions();
-  }, [recipes]);
+  }, [recipes, useSupabase, supabase]);
 
-  const handleIngredientChange = (value) => {
-    setIngredients(prev => prev.map(ing => ({ ...ing, product_name: value })));
-    const filteredProducts = productSuggestions.filter(product => product.toLowerCase().includes(value.toLowerCase()));
-    setProductSuggestions(filteredProducts);
-  };
+  // update a specific ingredient row `i`, field `field`, with `value`
+  const handleIngredientChange = (i, field, value) => {
+    setIngredients(prev => prev.map((ing, idx) => idx === i ? ({ ...ing, [field]: value }) : ing));
 
-  const handleUnitChange = (value) => {
-    setIngredients(prev => prev.map(ing => ({ ...ing, unit: value })));
-    const filteredUnits = unitSuggestions.filter(unit => unit.toLowerCase().includes(value.toLowerCase()));
-    setUnitSuggestions(filteredUnits);
+    // If the user is typing product name or unit, filter the visible suggestions
+    if (field === 'product_name') {
+      const master = productSuggestionsAll.length ? productSuggestionsAll : productSuggestions;
+      const filtered = value ? master.filter(p => p.toLowerCase().includes(value.toLowerCase())) : master;
+      setDisplayedProductSuggestions(filtered);
+    }
+
+    if (field === 'unit') {
+      const master = unitSuggestionsAll.length ? unitSuggestionsAll : unitSuggestions;
+      const filtered = value ? master.filter(u => u.toLowerCase().includes(value.toLowerCase())) : master;
+      setDisplayedUnitSuggestions(filtered);
+    }
   };
 
   const moveRowUp = (i) => {
@@ -415,7 +463,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               <div key={i} className="ingredient-row" style={{ marginBottom: 8 }}>
                 {ing.type === 'ingredient' ? (
                   <>
-                    <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
+                    <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} onInput={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
                     <input placeholder="כמות (אפשר 1 1/4)" type="text" style={{ width: 100 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} />
                     <span className="amount-fraction" aria-hidden="true">
                       {(() => {
@@ -430,7 +478,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                         return ''; // Otherwise, show nothing
                       })()}
                     </span>
-                    <input placeholder='יחידה / גרם / מ"ל...' style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
+                    <input placeholder='יחידה / גרם / מ"ל...' style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} onInput={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />
                     <input placeholder="הערה [אם יש]" style={{ width: 160 }} value={ing.comment} onChange={e => handleIngredientChange(i, 'comment', e.target.value)} />
                   </>
                 ) : (
@@ -446,12 +494,12 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               </div>
             ))}
             <datalist id="product-suggestions">
-              {productSuggestions.map((product, index) => (
+              {(displayedProductSuggestions.length ? displayedProductSuggestions : productSuggestions).map((product, index) => (
                 <option key={index} value={product} />
               ))}
             </datalist>
             <datalist id="unit-suggestions">
-              {unitSuggestions.map((unit, index) => (
+              {(displayedUnitSuggestions.length ? displayedUnitSuggestions : unitSuggestions).map((unit, index) => (
                 <option key={index} value={unit} />
               ))}
             </datalist>
