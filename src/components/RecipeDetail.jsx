@@ -494,6 +494,13 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
         </div>
       </div>
 
+      {recipe.source ? (
+        <div style={{ marginTop: 8, marginBottom: 12, direction: 'rtl', textAlign: 'right' }}>
+          <strong style={{ display: 'block', marginBottom: 4 }}>🔗 מקור</strong>
+          <div style={{ color: '#333', wordBreak: 'break-word' }}>{recipe.source}</div>
+        </div>
+      ) : null}
+
       <div className="recipe-content">
         <div className="ingredients-section">
           <h2>{hebrew.ingredients}</h2>
