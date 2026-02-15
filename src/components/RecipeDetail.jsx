@@ -45,6 +45,22 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
           }
 
           const normalized = { ...dbRecipe, prepTime: dbRecipe.prep_time, cookTime: dbRecipe.cook_time };
+          // Try to fetch the author's display name (profiles.display_name) and attach as proposerName
+          try {
+            if (dbRecipe.user_id) {
+              const { data: prof, error: profErr } = await supabase
+                .from('profiles')
+                .select('display_name')
+                .eq('user_id', dbRecipe.user_id)
+                .maybeSingle();
+              if (!profErr && prof?.display_name) {
+                normalized.proposerName = prof.display_name;
+              }
+            }
+          } catch (pfErr) {
+            console.warn('[RecipeDetail] Failed to fetch proposer display_name:', pfErr?.message || pfErr);
+          }
+
           setAllRecipes([normalized]);
           console.debug('[RecipeDetail] Recipe loaded:', { id: dbRecipe.id, title: dbRecipe.title });
 
@@ -337,7 +353,18 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
 
   // Prefer emoji from the recipe title (new behavior). Fallback to legacy `recipe.image` if it contains a short emoji.
   const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
-
+  const formatDate = (iso) => {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    } catch (err) {
+      return '';
+    }
+  };
   return (
     <div className="recipe-detail">
       <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 8 }}>
@@ -365,6 +392,19 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
             <span style={{ marginRight: 8 }}>{titleEmoji || '🍽️'}</span>
             {recipe.title.replace(titleEmoji, '').trim()}
           </h1>
+          <div
+            style={{
+              fontSize: 12,
+              color: '#666',
+              marginTop: 6,
+              marginBottom: 8,
+              direction: 'rtl',
+              textAlign: 'right'
+            }}
+          >
+            מאת {recipe.proposerName || recipe.display_name || 'משתמש'} | {formatDate(recipe.created_at)}
+          </div>
+
           <p className="recipe-description">{recipe.description}</p>
         </div>
       </div>

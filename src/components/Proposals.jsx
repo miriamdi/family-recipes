@@ -238,7 +238,7 @@ const Proposals = (props) => {
             <div className="proposal-card" key={proposal.id}>
               <h2>{proposal.title}</h2>
               <div style={{ fontSize: 12, color: '#666', marginTop: 6, marginBottom: 8 }}>
-                הצעה עלתה ע"י {proposal.proposerName || proposal.user_id} בתאריך {formatDate(proposal.created_at)}
+               מאת {proposal.proposerName || proposal.user_id} | {formatDate(proposal.created_at)}
               </div>
               <p className="proposal-content">{proposal.content}</p>
               <div className="proposal-meta">
