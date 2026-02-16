@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { hebrew } from '../data/hebrew';
 import styles from './AddRecipe.module.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
@@ -38,6 +38,28 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
   const [importError, setImportError] = useState('');
   const [parsedPreview, setParsedPreview] = useState(null);
   const [previewText, setPreviewText] = useState('');
+  const previewRef = useRef(null);
+
+  const toPreviewHTML = (text) => {
+    if (!text) return '';
+    return text.split(/\r?\n/).map(ln => {
+      const t = ln.trim();
+      if (!t) return '<div style="height:8px"></div>';
+      if (/^(?:שם:|מנות:|זמן הכנה:|סה"?כ:|מצרכים:|הוראות:)/i.test(t)) {
+        return `<div style="font-weight:700;margin-bottom:4px">${t}</div>`;
+      }
+      return `<div style="margin-left:6px;color:#222">${t}</div>`;
+    }).join('');
+  };
+
+  useEffect(() => {
+    if (previewRef.current) {
+      // Avoid overwriting the editable content while the user is actively editing
+      if (document && document.activeElement === previewRef.current) return;
+      const html = toPreviewHTML(previewText || '');
+      if (previewRef.current.innerHTML !== html) previewRef.current.innerHTML = html;
+    }
+  }, [previewText, parsedPreview]);
 
   useEffect(() => {
     // If used in edit mode, prefill fields from initialData and show the form
@@ -651,7 +673,26 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                   <div style={{ border: '1px solid #ddd', padding: 8, marginTop: 8 }}>
                     <strong>תצוגה מקדימה (טקסט עריכה):</strong>
                     <div style={{ marginTop: 6 }}>
-                      <textarea rows={12} style={{ width: '100%' }} value={previewText} onChange={e => setPreviewText(e.target.value)} />
+                      <div
+                        ref={previewRef}
+                        contentEditable
+                        role="textbox"
+                        aria-label="תצוגה מקדימה טקסט עריכה"
+                        onInput={e => {
+                          // Convert the editable HTML to newline-preserving plain text
+                          const html = e.currentTarget.innerHTML || '';
+                          // Replace divs and brs with newlines
+                          let withLines = html.replace(/<div\s*[^>]*>/gi, '\n')
+                                             .replace(/<br\s*\/?\s*>/gi, '\n')
+                                             .replace(/<\/div>/gi, '');
+                          // Strip any remaining tags
+                          withLines = withLines.replace(/<[^>]+>/g, '');
+                          // Normalize multiple newlines
+                          withLines = withLines.replace(/\n{2,}/g, '\n\n').replace(/^\n/, '');
+                          setPreviewText(withLines);
+                        }}
+                        style={{ width: '100%', minHeight: 180, padding: 8, outline: 'none', border: '1px solid #eee', background: '#fff', whiteSpace: 'pre-wrap' }}
+                      />
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button type="button" className={styles.addIngredient} onClick={() => parseRecipeText(previewText)}>פענח/עדכן תצוגה</button>
