@@ -15,7 +15,7 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
 
     // Permission check
     if (!user) {
-      setError('אנא התחברו כדי להוסיף תמונה');
+      window.alert('נא להתחבר כדי להוסיף תמונה');
       e.target.value = '';
       return;
     }
@@ -147,7 +147,14 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
         />
         <button
           type="button"
-          onClick={(e) => e.currentTarget.previousElementSibling?.click()}
+          onClick={(e) => {
+            if (disabled || uploading) return;
+            if (!user) {
+              window.alert('נא להתחבר כדי להוסיף תמונה');
+              return;
+            }
+            e.currentTarget.previousElementSibling?.click();
+          }}
           disabled={disabled || uploading}
           style={{
             padding: '8px 12px',

@@ -544,20 +544,18 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
       />
 
       {/* Image upload section */}
-      {(isOwner || isAdmin) && (
-        <div style={{ marginTop: 32, borderTop: '1px solid #ddd', paddingTop: 24 }}>
-          <h3 style={{ marginBottom: 16 }}>הכנת את המתכון? כאן אפשר להשוויץ עם תמונה 📸</h3>
-          <ImageUploader
-            recipeId={recipeId}
-            currentImageCount={recipeImages.length}
-            maxImages={MAX_IMAGES}
-            onImageAdded={handleAddImageSuccess}
-            user={user}
-            displayName={displayName}
-            disabled={recipeImages.length >= MAX_IMAGES}
-          />
-        </div>
-      )}
+      <div style={{ marginTop: 32, borderTop: '1px solid #ddd', paddingTop: 24 }}>
+        <h3 style={{ marginBottom: 16 }}>הכנת את המתכון? כאן אפשר להשוויץ עם תמונה 📸</h3>
+        <ImageUploader
+          recipeId={recipeId}
+          currentImageCount={recipeImages.length}
+          maxImages={MAX_IMAGES}
+          onImageAdded={handleAddImageSuccess}
+          user={user}
+          displayName={displayName}
+          disabled={recipeImages.length >= MAX_IMAGES}
+        />
+      </div>
     </div>
   );
 }
