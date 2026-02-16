@@ -16,7 +16,7 @@ const FOOD_EMOJI_CATALOG = [
   { emoji: '🍲', keywords: ['stew', 'מרק'] },
   { emoji: '🍜', keywords: ['ramen', 'noodle','אטריות', 'נודל'] },
   { emoji: '🍚', keywords: ['rice', 'אורז'] },
-  { emoji: '🍞', keywords: ['bread', 'לחם'] },
+  { emoji: '🍞', keywords: ['bread', 'לחם', 'חלה', 'חלות'] },
   { emoji: '🥐', keywords: ['croissant', 'מאפה', 'בצק'] },
   { emoji: '🥯', keywords: ['bagel', 'בייגל'] },
   { emoji: '🥖', keywords: ['baguette', 'בגט', 'לחמניה'] },

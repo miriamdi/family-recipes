@@ -6,7 +6,7 @@ import './RecipeDetail.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { processImageForUpload } from '../lib/imageUtils';
 import { extractLeadingEmoji } from '../lib/emojiUtils';
-import { formatAmountToFraction } from '../lib/formatUtils';
+import { formatAmountToFraction, parseAmountToDecimal } from '../lib/formatUtils';
 import ImageUploader from './ImageUploader';
 import ImageGallery from './ImageGallery';
 import AddRecipe from './AddRecipe';
@@ -147,21 +147,18 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
     // If unit is exactly the Hebrew word "יחידה", omit it from display
     const showUnit = unit && unit !== 'יחידה';
 
-    // Adjust amount display for fractions (number on the left, fraction on the right)
+    // Adjust amount display for fractions (use formatting helper to show nice unicode fractions)
     const amountElement = (() => {
       if (!amountRaw) return null;
-      const mixedMatch = amountRaw.match(/^(-?\d+)\s+(\d+\/\d+)$/);
-      if (mixedMatch) {
-        const intPart = mixedMatch[1];
-        const fracPart = mixedMatch[2];
+      try {
+        const dec = parseAmountToDecimal(amountRaw);
+        const formatted = formatAmountToFraction(dec);
         return (
-          <span className="amount-ltr" style={{ direction: 'ltr', display: 'inline-flex', gap: 6 }}>
-            <span className="amount-int">{intPart}</span>
-            <span className="amount-frac">{fracPart}</span>
-          </span>
+          <span className="amount-ltr" style={{ direction: 'ltr', display: 'inline-block' }}>{formatted}</span>
         );
+      } catch (err) {
+        return amountRaw;
       }
-      return amountRaw; // Return as-is if not a mixed fraction
     })();
 
     return (
