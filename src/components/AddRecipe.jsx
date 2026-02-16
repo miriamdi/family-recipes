@@ -172,6 +172,42 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
   // update a specific ingredient row `i`, field `field`, with `value`
   const handleIngredientChange = (i, field, value) => {
+    // If user types fraction-like input in the amount field or unit field, normalize immediately
+    if (field === 'amount') {
+      const s = String(value || '').trim();
+      // If contains slash or unicode fraction characters, convert to decimal string
+      if (/[\u00BC-\u00BE\u2150-\u215E]|\//.test(s)) {
+        try {
+          const dec = parseAmountToDecimal(s);
+          // Preserve empty when parse fails
+          const out = Number.isFinite(dec) ? String(Math.round(dec * 10000) / 10000) : s.replace(',', '.');
+          setIngredients(prev => prev.map((ing, idx) => idx === i ? ({ ...ing, [field]: out }) : ing));
+          return;
+        } catch (err) {
+          // fall back to storing raw
+        }
+      }
+      // Normalize comma to dot for decimal entry
+      const normalized = s.replace(',', '.');
+      setIngredients(prev => prev.map((ing, idx) => idx === i ? ({ ...ing, [field]: normalized }) : ing));
+      return;
+    }
+
+    if (field === 'unit') {
+      // If unit contains a fraction token like "1/4" or "½", extract it into amount
+      const unitVal = String(value || '').trim();
+      const fracFinder = /(\d+\s+\d+\/\d+|\d+\/\d+|[\u00BC-\u00BE\u2150-\u215E]|\d+(?:[.,]\d+)?)/;
+      const m = unitVal.match(fracFinder);
+      if (m) {
+        const fracToken = m[0];
+        const dec = parseAmountToDecimal(fracToken);
+        const decStr = Number.isFinite(dec) ? String(Math.round(dec * 10000) / 10000) : fracToken.replace(',', '.');
+        const newUnit = unitVal.replace(fracToken, '').trim();
+        setIngredients(prev => prev.map((ing, idx) => idx === i ? ({ ...ing, unit: newUnit, amount: decStr }) : ing));
+        return;
+      }
+    }
+
     setIngredients(prev => prev.map((ing, idx) => idx === i ? ({ ...ing, [field]: value }) : ing));
 
     // If the user is typing product name or unit, filter the visible suggestions
@@ -205,25 +241,49 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
   const parseIngredientLine = (line) => {
     let l = normalize(line).replace(/^[-*•\s]+/, '');
-    // Try to extract amount (1 1/2, 1/2, 2.5, 2)
-    const amountRe = /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?)/;
+    // Try to extract amount (1 1/2, 1/2, 2.5, 2) including unicode vulgar fractions and mixed forms like "1½"
+    const unicodeFracs = '\u00BD\u00BC\u00BE\u2150-\u215E';
+    // Capture any leading chunk made of digits, unicode vulgar fractions, slashes, dots, commas and spaces
+    const amountRe = new RegExp('^([0-9' + unicodeFracs + '\/\\s\\.,]+)');
     let amount = '';
     const m = l.match(amountRe);
     if (m) {
-      amount = m[0].replace(',', '.');
+      const token = m[1].trim();
+      try {
+        const dec = parseAmountToDecimal(token);
+        amount = Number.isFinite(dec) ? String(dec) : token.replace(',', '.');
+      } catch (err) {
+        amount = token.replace(',', '.');
+      }
       l = l.slice(m[0].length).trim();
     }
 
     // Next token might be unit (short). If unit exists but no explicit amount, assume amount = 1
     let unit = '';
     const tokens = l.split(/\s+/);
+
+    const isFractionToken = (t) => {
+      if (!t) return false;
+      const fracRe = /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])$/;
+      return fracRe.test(t);
+    };
+
     if (tokens.length >= 1) {
       const maybeUnit = tokens[0].replace(/[.,;:]$/,'');
-      const knownUnits = ['g','gr','gram','grams','kg','cup','cups','tbsp','tablespoon','tsp','teaspoon','ml','l','ltr','מ"ל','מל','גרם','כוס','כפית','כפות','חתיכה','פרוסה','כף'];
+      const knownUnits = ['g','gr','gram','grams','kg','cup','cups','tbsp','tablespoon','tsp','teaspoon','ml','l','ltr','מ"ל','מל','גרם','כוס','כוסות','כף','כפות','כפית','כפיות','חתיכה','פרוסה','יחידה'];
       if (knownUnits.includes(maybeUnit.toLowerCase())) {
         unit = tokens.shift();
         l = tokens.join(' ');
         if (!amount) amount = '1';
+
+        // If immediately after the unit there's a fraction token, treat it as the amount (e.g. "כוסות 1/4")
+        if (!amount || amount === '1') {
+          const next = tokens[0] ? tokens[0].replace(/[.,;:]$/,'') : '';
+          if (isFractionToken(next)) {
+            amount = tokens.shift();
+            l = tokens.join(' ');
+          }
+        }
       } else {
         // try to find a unit anywhere in the tokens (e.g. "שמן כף" or "ביצה כ" )
         for (let i = 0; i < tokens.length; i++) {
@@ -232,6 +292,13 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
             unit = tokens.splice(i, 1)[0];
             l = tokens.join(' ');
             if (!amount) amount = '1';
+
+            // If a following token is a fraction, pull it into amount
+            const next = tokens[0] ? tokens[0].replace(/[.,;:]$/,'') : '';
+            if (isFractionToken(next)) {
+              amount = tokens.shift();
+              l = tokens.join(' ');
+            }
             break;
           }
         }
@@ -491,9 +558,30 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       ingredients: ingredients.filter(i => i.type === 'ingredient' ? i.product_name.trim() : i.text.trim()).map(i => {
         if (i.type === 'ingredient') {
           // parse amount entered as fraction or decimal into a numeric value for storage
-          const rawInput = (i.amount != null) ? String(i.amount).trim() : '';
+          let rawInput = (i.amount != null) ? String(i.amount).trim() : '';
+          let unitField = (i.unit || '').trim();
+
+          // If user accidentally put fraction inside the unit field (e.g. "כוסות 1/4"), extract it
+          const fracFinder = /(\d+\s+\d+\/\d+|\d+\/\d+|[½¼¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+(?:[.,]\d+)?)/;
+          if ((!rawInput || rawInput === '') && unitField) {
+            const m = unitField.match(fracFinder);
+            if (m) {
+              rawInput = m[0];
+              unitField = unitField.replace(m[0], '').trim();
+            }
+          }
+
+          // If both amount and unit contain numbers/fractions, merge them into a mixed amount
+          if (rawInput && unitField) {
+            const m2 = unitField.match(fracFinder);
+            if (m2) {
+              rawInput = `${rawInput} ${m2[0]}`;
+              unitField = unitField.replace(m2[0], '').trim();
+            }
+          }
+
           const amt = parseAmountToDecimal(rawInput);
-          return { product_name: i.product_name.trim(), unit: i.unit.trim(), amount: amt, amount_raw: rawInput, comment: (i.comment || '').trim() };
+          return { product_name: i.product_name.trim(), unit: unitField, amount: amt, amount_raw: rawInput, comment: (i.comment || '').trim() };
         } else {
           return { type: 'subtitle', text: i.text.trim() };
         }
@@ -656,7 +744,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
         <form className={styles.form} onSubmit={handleSubmit}>
           <div className={styles.formGroup}>
-            <label>ייבוא מתכון מטקסט / קובץ</label>
+            <label>גרסה חלקית: ייבוא מתכון מטקסט / קובץ</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
               <button type="button" className={styles.addIngredient} onClick={() => { setShowImport(s => !s); setParsedPreview(null); }}>{showImport ? 'הסתרת ייבוא' : 'ייבא מטקסט'}</button>
               <input type="file" accept=".txt" onChange={e => handleFileUpload(e.target.files && e.target.files[0])} />
@@ -696,10 +784,10 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button type="button" className={styles.addIngredient} onClick={() => parseRecipeText(previewText)}>פענח/עדכן תצוגה</button>
-                      <button type="button" className={styles.submitButton} onClick={() => { const parsed = parseRecipeText(previewText); if (parsed) applyParsedPreview(parsed); }}>החל לטופס</button>
+                      <button type="button" className={styles.submitButton} onClick={() => { const parsed = parseRecipeText(previewText); if (parsed) applyParsedPreview(parsed); }}>המתכון נכון, נא להחיל לטופס!</button>
                       <button type="button" className={styles.cancelButton} onClick={() => { setParsedPreview(null); setPreviewText(''); }}>ביטול תצוגה</button>
                     </div>
-                    <div style={{ marginTop: 8, color: '#666' }}>ערוך את הטקסט לפי הצורך (כותרת, מצרכים בשורות, הוראות בשורות). לחץ "פענח/עדכן תצוגה" כדי לעבד את הטקסט מחדש.</div>
+                    <div style={{ marginTop: 8, color: '#666' }}>אפשר לערוך את הטקסט לפי הצורך (כותרת, מצרכים בשורות, הוראות בשורות).</div>
                   </div>
                 )}
               </>
@@ -772,14 +860,13 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                     <span className={styles.amountFraction} aria-hidden="true">
                       {(() => {
                         const raw = (ing.amount || '').toString().trim();
-                        // Show decimal only if user entered a fraction
-                        if (/^-?\d+\s+\d+\/\d+$/.test(raw) || /^-?\d+\/\d+$/.test(raw)) {
-                          const dec = parseAmountToDecimal(raw);
-                          if (dec == null || isNaN(Number(dec))) return raw;
-                          const decRounded = (Math.round(Number(dec) * 100) / 100);
-                          return `${raw} (${decRounded})`;
+                        const n = parseFloat(raw.replace(',', '.'));
+                        if (Number.isFinite(n)) {
+                          const nice = formatAmountToFraction(n);
+                          // if nice differs from raw, show hint like "1/4"
+                          if (nice && nice !== raw) return nice;
                         }
-                        return ''; // Otherwise, show nothing
+                        return '';
                       })()}
                     </span>
                     <input placeholder='יחידה / גרם / מ"ל...' style={{ width: 120 }} value={ing.unit} onChange={e => handleIngredientChange(i, 'unit', e.target.value)} onInput={e => handleIngredientChange(i, 'unit', e.target.value)} list="unit-suggestions" />

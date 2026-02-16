@@ -110,56 +110,38 @@ export function parseAmountToDecimal(input) {
   };
 
   // If string contains a unicode fraction, convert to an equivalent numeric expression
+  // Replace any unicode vulgar fraction characters with ascii "num/den" tokens (add spaces to separate)
   for (const [char, parts] of Object.entries(unicodeToFraction)) {
     if (s.includes(char)) {
       const [num, den] = parts;
-      // Mixed form like "1½" or "-1½"
-      const mixedMatch = s.match(/^(-?\d+)\s*${char}$/);
-      if (mixedMatch) {
-        const sign = mixedMatch[1].startsWith('-') ? -1 : 1;
-        const intPart = Math.abs(parseInt(mixedMatch[1], 10));
-        return sign * (intPart + num / den);
-      }
-      // Mixed with space like "1 ½"
-      const mixedSpace = s.match(/^(-?\d+)\s+${char}$/);
-      if (mixedSpace) {
-        const sign = mixedSpace[1].startsWith('-') ? -1 : 1;
-        const intPart = Math.abs(parseInt(mixedSpace[1], 10));
-        return sign * (intPart + num / den);
-      }
-      // Pure fraction char
-      if (s === char || s === `-${char}`) {
-        const sign = s.startsWith('-') ? -1 : 1;
-        return sign * (num / den);
-      }
-      // Replace any occurrence of the unicode fraction with its ascii form (e.g. "1½" -> "1 1/2")
-      s = s.replace(char, ` ${num}/${den}`);
-      break;
+      s = s.split(char).join(` ${num}/${den} `);
     }
   }
 
-  // Mixed number like "1 1/4" or "-1 1/4"
-  const mixed = s.match(/^(-?\d+)\s+(\d+)\/(\d+)$/);
-  if (mixed) {
-    const sign = mixed[1].startsWith('-') ? -1 : 1;
-    const intPart = Math.abs(parseInt(mixed[1], 10));
-    const num = parseInt(mixed[2], 10);
-    const den = parseInt(mixed[3], 10) || 1;
-    if (den === 0) return 0;
-    return sign * (intPart + num / den);
+  // Handle signs: if leading '-' then apply to the full sum
+  const negative = s.trim().startsWith('-');
+  if (negative) s = s.trim().slice(1).trim();
+
+  // Find numeric tokens: fractions like 1/2 or decimals/integers like 2 or 2.5
+  const tokens = s.match(/-?\d+\/\d+|-?\d+(?:[.,]\d+)?/g);
+  if (!tokens || tokens.length === 0) {
+    const f = parseFloat(s.replace(',', '.'));
+    return Number.isFinite(f) ? (negative ? -f : f) : 0;
   }
 
-  // Simple fraction like "3/4" or "-3/4"
-  const frac = s.match(/^(-?)(\d+)\/(\d+)$/);
-  if (frac) {
-    const sign = frac[1] === '-' ? -1 : 1;
-    const num = parseInt(frac[2], 10);
-    const den = parseInt(frac[3], 10) || 1;
-    if (den === 0) return 0;
-    return sign * (num / den);
+  // Sum all tokens: fractions are converted, decimals parsed. This allows inputs like "1 1/2", "1/2 2", "2½", "½2"
+  let total = 0;
+  for (const t of tokens) {
+    if (t.includes('/')) {
+      const parts = t.split('/');
+      const n = parseFloat(parts[0]);
+      const d = parseFloat(parts[1]) || 1;
+      if (d === 0) continue;
+      total += n / d;
+    } else {
+      const v = parseFloat(t.replace(',', '.'));
+      if (Number.isFinite(v)) total += v;
+    }
   }
-
-  // Fallback: parse as float (handles "1.25", "0.5", etc.)
-  const f = parseFloat(s.replace(',', '.'));
-  return Number.isFinite(f) ? f : 0;
+  return negative ? -total : total;
 }

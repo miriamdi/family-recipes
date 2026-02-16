@@ -140,8 +140,25 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
     if (typeof ing === 'string') return ing; // old format
     if (ing.type === 'subtitle') return ing.text; // subtitle
 
-    const amountRaw = (ing.amount_raw != null && String(ing.amount_raw).trim() !== '') ? String(ing.amount_raw).trim() : null;
-    const unit = ing.unit || '';
+    let amountRaw = (ing.amount_raw != null && String(ing.amount_raw).trim() !== '') ? String(ing.amount_raw).trim() : null;
+    let unit = (ing.unit || '').trim();
+    // If amount missing but unit contains a fraction (e.g. "כוסות 1/4"), extract it
+    const fracFinder = /(\d+\s+\d+\/\d+|\d+\/\d+|[½¼¾⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]|\d+(?:[.,]\d+)?)/;
+    if ((!amountRaw || amountRaw === '') && unit) {
+      const m = unit.match(fracFinder);
+      if (m) {
+        amountRaw = m[0];
+        unit = unit.replace(m[0], '').trim();
+      }
+    }
+    // If both amount and unit contain numbers/fractions, merge into mixed amount
+    if (amountRaw && unit) {
+      const m2 = unit.match(fracFinder);
+      if (m2) {
+        amountRaw = `${amountRaw} ${m2[0]}`;
+        unit = unit.replace(m2[0], '').trim();
+      }
+    }
     const name = ing.product_name || ing.name || '';
 
     // If unit is exactly the Hebrew word "יחידה", omit it from display
