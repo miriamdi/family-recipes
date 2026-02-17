@@ -244,11 +244,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
 
   return (
     <div className={styles.recipeList}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <Link to="/proposals" style={{ fontWeight: '700', color: 'var(--accent)', textDecoration: 'underline', fontSize: 16 }}>
-          הצעות לשיפור הבלוג
-        </Link>
-      </div>
+      {/* Proposals link removed per request */}
       <h1 className={styles.title}>{hebrew.title}</h1>
       <p className={styles.subtitle}>{hebrew.subtitle}</p>
 
