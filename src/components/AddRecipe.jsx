@@ -17,6 +17,8 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
   const [servings, setServings] = useState('');
   const [difficulty, setDifficulty] = useState('easy');
   const [source, setSource] = useState('');
+  const [sourceUrl, setSourceUrl] = useState('');
+  const [sourceText, setSourceText] = useState('');
   const [ingredients, setIngredients] = useState([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
   const [showForm, setShowForm] = useState(false);
   const [instructions, setInstructions] = useState('');
@@ -113,7 +115,24 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
       // Map english difficulty back to Hebrew options
       const diffMap = { easy: 'קל', medium: 'בינוני', hard: 'קשה' };
       setDifficulty(diffMap[initialData.difficulty] || initialData.difficulty || 'easy');
-      setSource(initialData.source || '');
+      // Load source: support legacy plain string or JSON { text, url }
+      try {
+        const s = initialData.source || '';
+        if (typeof s === 'string' && s.trim().startsWith('{')) {
+          const parsed = JSON.parse(s);
+          setSourceUrl(parsed.url || '');
+          setSourceText(parsed.text || parsed.url || '');
+          setSource(s);
+        } else {
+          setSource(initialData.source || '');
+          setSourceUrl('');
+          setSourceText(initialData.source || '');
+        }
+      } catch (err) {
+        setSource(initialData.source || '');
+        setSourceUrl('');
+        setSourceText(initialData.source || '');
+      }
       setIngredients(Array.isArray(initialData.ingredients) ? initialData.ingredients.map(i => i.type === 'subtitle' ? { type: 'subtitle', text: i.text } : { type: 'ingredient', product_name: i.product_name || i.name || '', unit: i.unit || '', amount: i.amount_raw ?? i.amount ?? i.qty ?? '', comment: i.comment || '' }) : [{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
       setInstructions(Array.isArray(initialData.steps) ? initialData.steps.join('\n') : (initialData.steps || ''));
       // tags
@@ -550,6 +569,24 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
     return parsed;
   };
 
+  const getTextFromUrl = (u) => {
+    if (!u) return '';
+    try {
+      const url = new URL(u);
+      const host = url.hostname || '';
+      const first = host.split('.')?.[0] || host;
+      return decodeURIComponent(first.replace(/^www\./, ''));
+    } catch (e) {
+      try {
+        const stripped = String(u).replace(/^https?:\/\//, '').replace(/^www\./, '').split(/\//)[0];
+        const first = stripped.split('.')?.[0] || stripped;
+        return decodeURIComponent(first);
+      } catch (err) {
+        return '';
+      }
+    }
+  };
+
   const applyParsedPreview = (parsed) => {
     const p = parsed || parsedPreview;
     if (!p) return;
@@ -620,7 +657,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
     if (!totalTimeValue) missing.push('totalTimeValue');
     if (!servings) missing.push('servings');
     if (!difficulty) missing.push('difficulty');
-    if (!source) missing.push('source');
+    if (!sourceText && !sourceUrl && !source) missing.push('source');
     if (!ingredients || ingredients.length === 0) missing.push('ingredients');
     if (!instructions || !instructions.trim()) missing.push('instructions');
     if (missing.length) {
@@ -652,6 +689,21 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
     // We store numeric minutes in the DB (prep_time / cook_time).
     // Avoid relying on textual "*_time_text" columns for core logic.
 
+    // Build source value: if a URL is provided, store JSON { text, url } as string; otherwise store plain text
+    const finalSourceValue = (function() {
+      const u = (sourceUrl || '').toString().trim();
+      const t = (sourceText || '').toString().trim();
+      if (u) {
+        const textFrom = t || getTextFromUrl(u) || u;
+        try {
+          return JSON.stringify({ text: textFrom, url: u });
+        } catch (e) {
+          return `${textFrom} - ${u}`;
+        }
+      }
+      return t || (source || '') || '';
+    })();
+
     const payload = {
       title: finalTitle,
       description: '',
@@ -674,7 +726,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
       servings: numericServings,
       servings_text: (servings || '').toString(),
       difficulty: englishDifficulty,
-      source,
+      source: finalSourceValue,
       ingredients: ingredients.filter(i => i.type === 'ingredient' ? i.product_name.trim() : i.text.trim()).map(i => {
         if (i.type === 'ingredient') {
           // parse amount entered as fraction or decimal into a numeric value for storage
@@ -964,6 +1016,8 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
               setServings('');
               setDifficulty('easy');
               setSource('');
+              setSourceUrl('');
+              setSourceText('');
               setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
               setInstructions('');
                 if (editMode && onCancel) onCancel();
@@ -1118,7 +1172,28 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
 
           <div className="form-group">
             <label>{hebrew.sourceLabel}</label>
-            <input className={invalidFields.includes('source') ? styles.invalidField : ''} type="text" value={source} onChange={e => setSource(e.target.value)} />
+            <input
+              className={invalidFields.includes('source') ? styles.invalidField : ''}
+              type="url"
+              placeholder="קישור מקור (https://...)"
+              value={sourceUrl}
+              onChange={e => {
+                const v = e.target.value;
+                setSourceUrl(v);
+                if (!sourceText || !sourceText.trim()) {
+                  const guessed = getTextFromUrl(v);
+                  if (guessed) setSourceText(guessed);
+                }
+              }}
+              style={{ marginBottom: 8 }}
+            />
+            <input
+              className={invalidFields.includes('source') ? styles.invalidField : ''}
+              type="text"
+              placeholder="טקסט לתצוגה (ניתן לעריכה)"
+              value={sourceText}
+              onChange={e => setSourceText(e.target.value)}
+            />
           </div>
 
           <div className={`${styles.formGroup} ${invalidFields.includes('ingredients') ? styles.invalidField : ''}`}>
@@ -1197,6 +1272,8 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
               setServings('');
               setDifficulty('easy');
               setSource('');
+              setSourceUrl('');
+              setSourceText('');
               setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
               setInstructions('');
             }}>{hebrew.cancel}</button>

@@ -561,7 +561,37 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
           )}
           <div style={{ marginTop: 8, marginBottom: 12, direction: 'rtl', textAlign: 'right' }}>
             <strong style={{ display: 'block', marginBottom: 4 }}>🔗 מקור</strong>
-            <div style={{ color: '#333', wordBreak: 'break-word' }}>{recipe.source}</div>
+            <div style={{ color: '#333', wordBreak: 'break-word' }}>
+              {(() => {
+                const s = recipe.source;
+                // If stored as JSON { text, url }
+                try {
+                  if (typeof s === 'string' && s.trim().startsWith('{')) {
+                    const parsed = JSON.parse(s);
+                    if (parsed && parsed.url) {
+                      const text = parsed.text || parsed.url;
+                      return (<a href={parsed.url} target="_blank" rel="noopener noreferrer">{text}</a>);
+                    }
+                  }
+                } catch (err) {
+                  // fall through to other handlers
+                }
+
+                if (typeof s === 'string' && /https?:\/\//.test(s)) {
+                  try {
+                    const u = new URL(s.trim());
+                    const first = (u.hostname || '').split('.')[0].replace(/^www\./, '');
+                    const pretty = decodeURIComponent(first) || s;
+                    return (<a href={s} target="_blank" rel="noopener noreferrer">{pretty}</a>);
+                  } catch (err) {
+                    return s;
+                  }
+                }
+
+                // fallback: render as plain text
+                return s;
+              })()}
+            </div>
           </div>
         </>
       ) : null}
