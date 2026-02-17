@@ -14,6 +14,9 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
   const [recipeImages, setRecipeImages] = useState({});  // recipe_id -> array of images
   const [reactions, setReactions] = useState({});
   const [sortBy, setSortBy] = useState('category');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('');
+  const [activeTag, setActiveTag] = useState('');
 
   useEffect(() => {
     loadRecipes();
@@ -213,6 +216,31 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
     return '—';
   };
 
+  // Prepare filtered list and groups for rendering
+  const filteredRecipes = (allRecipes || []).filter(r => {
+    if (activeCategory && String(r.category || '').trim() !== String(activeCategory).trim()) return false;
+    if (activeTag && Array.isArray(r.tags) && !r.tags.map(t => String(t).toLowerCase()).includes(String(activeTag).toLowerCase())) return false;
+    if (activeTag && !r.tags) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const inTitle = String(r.title || '').toLowerCase().includes(q);
+      const inDesc = String(r.description || '').toLowerCase().includes(q);
+      const inTags = Array.isArray(r.tags) && r.tags.join(' ').toLowerCase().includes(q);
+      const inIngredients = Array.isArray(r.ingredients) && r.ingredients.join(' ').toLowerCase().includes(q);
+      if (!(inTitle || inDesc || inTags || inIngredients)) return false;
+    }
+    return true;
+  });
+
+  const groups = {};
+  (filteredRecipes || []).forEach(r => {
+    const catRaw = (r.category || '').trim();
+    const cat = catRaw || 'אחרים';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(r);
+  });
+
+
 
   return (
     <div className={styles.recipeList}>
@@ -241,6 +269,16 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
           </div>
         )}
 
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
+          <input
+            placeholder="חיפוש"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', minWidth: 220 }}
+          />
+          <button onClick={() => { setSearchQuery(''); setActiveCategory(''); setActiveTag(''); }} style={{ padding: '6px 10px' }}>נקה</button>
+        </div>
+
         <div className={styles.sortContainer}>
           <label className={styles.sortLabel}>סדר לפי:</label>
           <select className={styles.sortSelect} value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
@@ -256,94 +294,75 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
       ) : (
         <div>
         {sortBy === 'category' ? (
-          // Group recipes by category and render a heading for each
-          (() => {
-            const groups = {};
-            (allRecipes || []).forEach(r => {
-              const catRaw = (r.category || '').trim();
-              const cat = catRaw || 'אחרים';
-              if (!groups[cat]) groups[cat] = [];
-              groups[cat].push(r);
-            });
+          <div>
+            {(() => {
+              const ORDER = [
+                'מנות פתיחה',
+                'סלטים',
+                'מרקים',
+                'עיקריות',
+                'תוספות',
+                'מאפים ולחמים',
+                'קינוחים',
+                'משקאות'
+              ];
+              // Render categories in the requested order; any other categories go into 'אחרים' after
+              const elements = [];
+              ORDER.forEach(cat => { if (groups[cat]) elements.push(cat); });
+              const otherCats = Object.keys(groups).filter(c => !ORDER.includes(c) && c !== 'אחרים').sort((a,b) => a.localeCompare(b));
+              if (groups['אחרים'] || otherCats.length) elements.push('אחרים');
 
-            const ORDER = [
-              'מנות פתיחה',
-              'סלטים',
-              'מרקים',
-              'עיקריות',
-              'תוספות',
-              'מאפים ולחמים',
-              'קינוחים',
-              'משקאות'
-            ];
-
-            // Render categories in the requested order; any other categories go into 'אחרים' after
-            const elements = [];
-            ORDER.forEach(cat => {
-              if (groups[cat]) {
-                elements.push(cat);
-              }
-            });
-            // collect other categories
-            const otherCats = Object.keys(groups).filter(c => !ORDER.includes(c) && c !== 'אחרים').sort((a,b) => a.localeCompare(b));
-            if (groups['אחרים'] || otherCats.length) elements.push('אחרים');
-
-            return (
-              <div>
-                {elements.map(cat => (
-                  <div key={cat} style={{ marginBottom: 24 }}>
-                    <h2 className={styles.categoryTitle}>{cat}</h2>
-                    <div className={styles.recipesGrid}>
-                      {(cat === 'אחרים'
-                        ? [ ...(groups['אחרים'] || []), ...otherCats.flatMap(c => groups[c] || []) ]
-                        : groups[cat]
-                      ).map((recipe) => {
-          const r = reactions[recipe.id] || { likes: 0 };
-          // Get preview image from recipe_images table
-          const images = recipeImages[recipe.id] || [];
-          const previewImage = images.length > 0 ? getStableRandomImage(images, recipe.id) : null;
-          // Prefer emoji from the title (new stored format). Fallback to legacy `recipe.image` emoji when present.
-          const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
+              return elements.map(cat => (
+                <div key={cat} style={{ marginBottom: 24 }}>
+                  <h2 className={styles.categoryTitle} style={{ cursor: 'pointer' }} onClick={() => setActiveCategory(cat === activeCategory ? '' : cat)}>{cat}</h2>
+                  <div className={styles.recipesGrid}>
+                    {(cat === 'אחרים' ? [ ...(groups['אחרים'] || []), ...otherCats.flatMap(c => groups[c] || []) ] : groups[cat] || []).map((recipe) => {
+                      const r = reactions[recipe.id] || { likes: 0 };
+                      const images = recipeImages[recipe.id] || [];
+                      const previewImage = images.length > 0 ? getStableRandomImage(images, recipe.id) : null;
+                      const titleEmoji = extractLeadingEmoji(recipe.title) || (recipe.image && typeof recipe.image === 'string' && recipe.image.length < 4 ? recipe.image : null);
 
                       return (
                         <Link to={`/recipe/${recipe.id}`} key={recipe.id} className={styles.recipeCard}>
-              {previewImage ? (
-                <div className={styles.previewImage}>
-                  <img src={previewImage.image_url} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-              ) : titleEmoji ? (
-                <div className={styles.previewEmoji}>{titleEmoji}</div>
-              ) : null}
+                          {previewImage ? (
+                            <div className={styles.previewImage}><img src={previewImage.image_url} alt={recipe.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>
+                          ) : titleEmoji ? (
+                            <div className={styles.previewEmoji}>{titleEmoji}</div>
+                          ) : null}
 
-              <h3 className={styles.cardTitle}>{recipe.title}</h3>
-              <p className={styles.recipeDescription}>{recipe.description}</p>
+                          <h3 className={styles.cardTitle}>{recipe.title}</h3>
+                          <p className={styles.recipeDescription}>{recipe.description}</p>
 
-              <div className={styles.recipeMeta}>
-                <span>⏱️ {getRecipeTimeText(recipe)}</span>
-                <span>👥 {getServingsText(recipe)}</span>
-              </div>
+                          <div className={styles.recipeMeta}>
+                            <span>⏱️ {getRecipeTimeText(recipe)}</span>
+                            <span>👥 {getServingsText(recipe)}</span>
+                          </div>
 
-              {recipe.profiles?.display_name && (
-                <div className={styles.author}>נוסף ע״י {recipe.profiles.display_name}</div>
-              )}
+                          {recipe.profiles?.display_name && (<div className={styles.author}>נוסף ע״י {recipe.profiles.display_name}</div>)}
 
-              <div style={{ marginTop: 8 }}>
-                <button onClick={(e) => handleReaction(e, recipe.id)} className={styles.reactionButton} style={{ opacity: r.liked ? 1 : 0.6 }} aria-pressed={!!r.liked} aria-label={`לאהוב ${recipe.title}`}>
-                  👍 {r.likes || 0}
-                </button>
-              </div>
+                          <div style={{ marginTop: 8 }}>
+                            {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
+                              <div style={{ marginBottom: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                {recipe.tags.map((t, idx) => (
+                                  <button key={idx} onClick={(e) => { e.preventDefault(); setActiveTag(t); }} style={{ background: '#f1f4f6', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer' }}>{t}</button>
+                                ))}
+                              </div>
+                            )}
+                            <button onClick={(e) => handleReaction(e, recipe.id)} className={styles.reactionButton} style={{ opacity: r.liked ? 1 : 0.6 }} aria-pressed={!!r.liked} aria-label={`לאהוב ${recipe.title}`}>
+                              👍 {r.likes || 0}
+                            </button>
+                          </div>
                         </Link>
                       );
-                      })}
-                    </div>
+                    })}
                   </div>
-                ))}
-              </div>
-            );
-          })()
+                </div>
+              ));
+            })()}
+          </div>
         ) : (
           <div className={styles.recipesGrid}>
-            {allRecipes.map((recipe) => {
+            {(filteredRecipes || []).map((recipe) => {
               const r = reactions[recipe.id] || { likes: 0 };
               const images = recipeImages[recipe.id] || [];
               const previewImage = images.length > 0 ? getStableRandomImage(images, recipe.id) : null;
@@ -372,6 +391,13 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
                   )}
 
                   <div style={{ marginTop: 8 }}>
+                    {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
+                      <div style={{ marginBottom: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {recipe.tags.map((t, idx) => (
+                          <button key={idx} onClick={(e) => { e.preventDefault(); setActiveTag(t); }} style={{ background: '#f1f4f6', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer' }}>{t}</button>
+                        ))}
+                      </div>
+                    )}
                     <button onClick={(e) => handleReaction(e, recipe.id)} className={styles.reactionButton} style={{ opacity: r.liked ? 1 : 0.6 }} aria-pressed={!!r.liked} aria-label={`לאהוב ${recipe.title}`}>
                       👍 {r.likes || 0}
                     </button>
