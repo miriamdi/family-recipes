@@ -4,22 +4,21 @@ import styles from './AddRecipe.module.css';
 import { supabase, useSupabase } from '../lib/supabaseClient';
 import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
 import { formatAmountToFraction, parseAmountToDecimal } from '../lib/formatUtils';
-
-export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, userLoading, editMode = false, initialData = null, onSave = null, onCancel = null }) {
-  const [showForm, setShowForm] = useState(false);
+export default function AddRecipe({ recipes = [], editMode = false, initialData = null, onRecipeAdded = null, onSave = null, onCancel = null, user = null, displayName = null, userLoading = false, useSupabase = false }) {
   const [recipeName, setRecipeName] = useState('');
-  const [image, setImage] = useState(() => getEmojiForName(''));
+  const [image, setImage] = useState('');
   const [category, setCategory] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [useNewCategory, setUseNewCategory] = useState(false);
-  const [workTimeMinutes, setWorkTimeMinutes] = useState('');
-  const [totalTimeMinutes, setTotalTimeMinutes] = useState('');
+  const [workTimeValue, setWorkTimeValue] = useState('');
+  const [workTimeUnit, setWorkTimeUnit] = useState('דקות');
+  const [totalTimeValue, setTotalTimeValue] = useState('');
+  const [totalTimeUnit, setTotalTimeUnit] = useState('דקות');
   const [servings, setServings] = useState('');
-  const [difficulty, setDifficulty] = useState('easy'); // stored as easy|medium|hard
+  const [difficulty, setDifficulty] = useState('easy');
   const [source, setSource] = useState('');
-  const [ingredients, setIngredients] = useState([
-    { type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }
-  ]);
+  const [ingredients, setIngredients] = useState([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
+  const [showForm, setShowForm] = useState(false);
   const [instructions, setInstructions] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -68,9 +67,35 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       setRecipeName(initialData.title || '');
       setImage(getEmojiForName(initialData.title || ''));
       setCategory(initialData.category || '');
-      setWorkTimeMinutes(initialData.prep_time || initialData.prepTime || '');
-      setTotalTimeMinutes(initialData.cook_time || initialData.cookTime || '');
-      setServings(initialData.servings || '');
+      // Convert stored minutes back to a value+unit pair for editing
+      const prep = initialData.prep_time ?? initialData.prepTime ?? '';
+      const cook = initialData.cook_time ?? initialData.cookTime ?? '';
+      if (prep !== '' && prep != null) {
+        if (prep % 1440 === 0) {
+          setWorkTimeValue(String(prep / 1440));
+          setWorkTimeUnit('ימים');
+        } else if (prep % 60 === 0) {
+          setWorkTimeValue(String(prep / 60));
+          setWorkTimeUnit('שעות');
+        } else {
+          setWorkTimeValue(String(prep));
+          setWorkTimeUnit('דקות');
+        }
+      }
+      if (cook !== '' && cook != null) {
+        if (cook % 1440 === 0) {
+          setTotalTimeValue(String(cook / 1440));
+          setTotalTimeUnit('ימים');
+        } else if (cook % 60 === 0) {
+          setTotalTimeValue(String(cook / 60));
+          setTotalTimeUnit('שעות');
+        } else {
+          setTotalTimeValue(String(cook));
+          setTotalTimeUnit('דקות');
+        }
+      }
+      // Prefer textual servings when available for editing (e.g. "4-6", "לחצי מנה")
+      setServings(initialData.servings_text ?? initialData.servings ?? '');
       // Map english difficulty back to Hebrew options
       const diffMap = { easy: 'קל', medium: 'בינוני', hard: 'קשה' };
       setDifficulty(diffMap[initialData.difficulty] || initialData.difficulty || 'easy');
@@ -475,8 +500,14 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
     if (p.ingredients && p.ingredients.length) setIngredients(p.ingredients);
     if (p.steps && p.steps.length) setInstructions(p.steps.join('\n'));
     if (p.servings) setServings(p.servings);
-    if (p.prep) setWorkTimeMinutes(p.prep);
-    if (p.total) setTotalTimeMinutes(p.total);
+    if (p.prep) {
+      setWorkTimeValue(String(p.prep));
+      setWorkTimeUnit('דקות');
+    }
+    if (p.total) {
+      setTotalTimeValue(String(p.total));
+      setTotalTimeUnit('דקות');
+    }
     setShowImport(false);
   };
 
@@ -524,7 +555,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       return;
     }
 
-    if (!recipeName || !category || !workTimeMinutes || !totalTimeMinutes || !servings || !difficulty || !source || ingredients.length === 0 || !instructions.trim()) {
+    if (!recipeName || !category || !workTimeValue || !totalTimeValue || !servings || !difficulty || !source || ingredients.length === 0 || !instructions.trim()) {
       setError("בבקשה למלא את כל השדות הנדרשים");
       return;
     }
@@ -544,15 +575,35 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
       ? nameWithoutKnownEmoji
       : (emojiToPrepend ? `${emojiToPrepend} ${nameWithoutKnownEmoji}` : nameWithoutKnownEmoji);
 
+    const numericServings = (() => {
+      const parsed = parseInt(String(servings).replace(/[^0-9\-]/g, ''), 10);
+      return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
+    })();
+
+    // We store numeric minutes in the DB (prep_time / cook_time).
+    // Avoid relying on textual "*_time_text" columns for core logic.
+
     const payload = {
       title: finalTitle,
       description: '',
       // Do NOT store the emoji as an image URL. Leave `image` empty by default (emoji is in the title).
       image: '',
       category: finalCategory,
-      prep_time: parseInt(workTimeMinutes),
-      cook_time: parseInt(totalTimeMinutes),
-      servings: parseInt(servings),
+      prep_time: (function() {
+        const v = parseFloat(String(workTimeValue).replace(',', '.')) || 0;
+        if (workTimeUnit === 'שעות') return Math.round(v * 60);
+        if (workTimeUnit === 'ימים') return Math.round(v * 1440);
+        return Math.round(v);
+      })(),
+      cook_time: (function() {
+        const v = parseFloat(String(totalTimeValue).replace(',', '.')) || 0;
+        if (totalTimeUnit === 'שעות') return Math.round(v * 60);
+        if (totalTimeUnit === 'ימים') return Math.round(v * 1440);
+        return Math.round(v);
+      })(),
+      // send numeric servings for DB compatibility and also the original text
+      servings: numericServings,
+      servings_text: (servings || '').toString(),
       difficulty: englishDifficulty,
       source,
       ingredients: ingredients.filter(i => i.type === 'ingredient' ? i.product_name.trim() : i.text.trim()).map(i => {
@@ -617,79 +668,21 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
           const inserted = await res.json();
 
-          const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
-
+          // Ensure the UI-facing recipe preserves `servings_text` when provided by the form payload.
+          const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time, servings_text: payload.servings_text ?? inserted.servings_text ?? null } : null;
           setMessage(hebrew.successMessage);
           setTimeout(() => {
-            // optimistic update + ask parent to re-fetch to reconcile server state
             onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
             setShowForm(false);
             setMessage('');
             setSubmitting(false);
           }, 800);
-        } else {
-          // EDIT MODE: update existing recipe
-          try {
-            const toUpdate = { ...payload };
-            const { data: updatedRow, error: upErr } = await supabase.from('recipes').update(toUpdate).eq('id', initialData.id).select().single();
-            if (upErr) throw upErr;
-            const uiRecipe = updatedRow ? { ...updatedRow, prepTime: updatedRow.prep_time, cookTime: updatedRow.cook_time } : null;
-            if (uiRecipe && !uiRecipe.updated_at) uiRecipe.updated_at = new Date().toISOString();
-            setMessage('המתכון עודכן בהצלחה');
-            setTimeout(() => {
-              onSave ? onSave(uiRecipe) : onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
-              setShowForm(false);
-              setMessage('');
-              setSubmitting(false);
-            }, 800);
-          } catch (editErr) {
-            console.error('Edit save failed', editErr);
-            setError(editErr?.message || 'שגיאה בעדכון המתכון');
-            setSubmitting(false);
-          }
+          return;
         }
       } catch (err) {
         console.error('Supabase insert unexpected error', err);
-        // Fallback: try inserting directly with Supabase client (useful in dev or if functions are down)
-        try {
-          const { data: { user: fallbackUser } = {}, error: authErr } = await supabase.auth.getUser();
-          if (!fallbackUser?.id) throw new Error('לא מזוהים - התחברו כדי לנסות שוב');
-          if (!editMode) {
-            const toInsertFallback = { ...payload, user_id: fallbackUser.id, user_email: fallbackUser.email };
-            const { data: insertData, error: insertErr } = await supabase.from('recipes').insert(toInsertFallback).select().single();
-            if (insertErr) throw insertErr;
-
-            const inserted = insertData || null;
-            const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time } : null;
-            setMessage(hebrew.successMessage);
-            setTimeout(() => {
-              onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
-              setShowForm(false);
-              setMessage('');
-              setSubmitting(false);
-            }, 800);
-            return;
-          } else {
-            // edit mode fallback: update directly
-            const toUpdate = { ...payload };
-            const { data: updatedRow, error: upErr } = await supabase.from('recipes').update(toUpdate).eq('id', initialData.id).select().single();
-            if (upErr) throw upErr;
-            const uiRecipe = updatedRow ? { ...updatedRow, prepTime: updatedRow.prep_time, cookTime: updatedRow.cook_time } : null;
-            if (uiRecipe && !uiRecipe.updated_at) uiRecipe.updated_at = new Date().toISOString();
-            setMessage('המתכון עודכן בהצלחה');
-            setTimeout(() => {
-              onSave ? onSave(uiRecipe) : onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
-              setShowForm(false);
-              setMessage('');
-              setSubmitting(false);
-            }, 800);
-            return;
-          }
-        } catch (fallbackErr) {
-          console.error('Fallback insert failed', fallbackErr);
-          setError(fallbackErr?.message || err?.message || 'שגיאה בשמירה בשרת');
-          setSubmitting(false);
-        }
+        setError(err?.message || 'שגיאה בשמירה בשרת');
+        setSubmitting(false);
       }
 
       return;
@@ -725,8 +718,10 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               setCategory('');
               setNewCategory('');
               setUseNewCategory(false);
-              setWorkTimeMinutes('');
-              setTotalTimeMinutes('');
+              setWorkTimeValue('');
+              setWorkTimeUnit('דקות');
+              setTotalTimeValue('');
+              setTotalTimeUnit('דקות');
               setServings('');
               setDifficulty('easy');
               setSource('');
@@ -820,19 +815,33 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
 
             <div className={styles.formRow}>
             <div className={styles.formGroup}>
-              <label>זמן עבודה (דקות)</label>
-              <input type="number" value={workTimeMinutes} onChange={e => setWorkTimeMinutes(e.target.value)} min="0" />
+              <label>זמן עבודה</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="number" value={workTimeValue} onChange={e => setWorkTimeValue(e.target.value)} min="0" style={{ width: 120 }} />
+                <select value={workTimeUnit} onChange={e => setWorkTimeUnit(e.target.value)}>
+                  <option value="דקות">דקות</option>
+                  <option value="שעות">שעות</option>
+                  <option value="ימים">ימים</option>
+                </select>
+              </div>
             </div>
             <div className={styles.formGroup}>
-              <label>זמן הכנה כולל (דקות)</label>
-              <input type="number" value={totalTimeMinutes} onChange={e => setTotalTimeMinutes(e.target.value)} min="0" />
+              <label>זמן הכנה כולל</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="number" value={totalTimeValue} onChange={e => setTotalTimeValue(e.target.value)} min="0" style={{ width: 120 }} />
+                <select value={totalTimeUnit} onChange={e => setTotalTimeUnit(e.target.value)}>
+                  <option value="דקות">דקות</option>
+                  <option value="שעות">שעות</option>
+                  <option value="ימים">ימים</option>
+                </select>
+              </div>
             </div>
           </div>
 
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
               <label>{hebrew.servingsLabel}</label>
-              <input type="number" value={servings} onChange={e => setServings(e.target.value)} min="1" />
+              <input type="text" value={servings} onChange={e => setServings(e.target.value)} placeholder="" />
             </div>
             <div className={styles.formGroup}>
               <label>{hebrew.difficultyLabel}</label>
@@ -856,7 +865,7 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
                 {ing.type === 'ingredient' ? (
                   <>
                     <input placeholder="שם מוצר" style={{ flex: 2 }} value={ing.product_name} onChange={e => handleIngredientChange(i, 'product_name', e.target.value)} onInput={e => handleIngredientChange(i, 'product_name', e.target.value)} list="product-suggestions" />
-                    <input placeholder="כמות (אפשר 1 1/4)" type="text" style={{ width: 100 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} />
+                    <input placeholder="כמות" type="text" style={{ width: 100 }} value={ing.amount} onChange={e => handleIngredientChange(i, 'amount', e.target.value)} />
                     <span className={styles.amountFraction} aria-hidden="true">
                       {(() => {
                         const raw = (ing.amount || '').toString().trim();
@@ -916,8 +925,10 @@ export default function AddRecipe({ onRecipeAdded, recipes, user, displayName, u
               setCategory('');
               setNewCategory('');
               setUseNewCategory(false);
-              setWorkTimeMinutes('');
-              setTotalTimeMinutes('');
+              setWorkTimeValue('');
+              setWorkTimeUnit('דקות');
+              setTotalTimeValue('');
+              setTotalTimeUnit('דקות');
               setServings('');
               setDifficulty('easy');
               setSource('');
