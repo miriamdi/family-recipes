@@ -74,8 +74,8 @@ export default function ImageGallery({ images, recipeId, user, onImageDeleted })
       {error && (
         <div style={{
           padding: 12,
-          background: '#fee',
-          color: '#c00',
+          background: 'var(--danger-bg, #fff5f5)',
+          color: 'var(--danger, #D32F2F)',
           borderRadius: 4,
           marginBottom: 16,
           fontSize: 13
@@ -132,7 +132,7 @@ export default function ImageGallery({ images, recipeId, user, onImageDeleted })
                   position: 'absolute',
                   top: 4,
                   left: 4,
-                  background: deleting === img.id ? '#aaa' : '#e74c3c',
+                  background: deleting === img.id ? '#aaa' : 'var(--danger)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '50%',

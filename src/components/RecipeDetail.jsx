@@ -189,7 +189,7 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
 
     return (
       <span>
-        {amountElement && <>{amountElement}{' '}</>}
+        {unit !== 'קורט' && amountElement && <>{amountElement}{' '}</>}
         {showUnit && <>{unit}{' '}</>}
         {name}
         {ing.comment ? <> {' '}({ing.comment})</> : null}

@@ -157,8 +157,8 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
           }}
           disabled={disabled || uploading}
           style={{
-            padding: '8px 12px',
-            background: disabled || uploading ? '#ccc' : '#4CAF50',
+              padding: '8px 12px',
+              background: disabled || uploading ? '#ccc' : 'var(--add-color)',
             color: 'white',
             border: 'none',
             borderRadius: 4,
@@ -177,8 +177,8 @@ export default function ImageUploader({ recipeId, currentImageCount, maxImages, 
       {error && (
         <div style={{
           padding: 8,
-          background: '#fee',
-          color: '#c00',
+          background: 'var(--danger-bg, #fff5f5)',
+          color: 'var(--danger, #D32F2F)',
           borderRadius: 4,
           fontSize: 13
         }}>

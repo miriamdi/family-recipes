@@ -59,13 +59,13 @@
 .reaction-button:hover { background: #ecf0f1; }
 
 .recipe-title-section h1 {
-  color: #2c3e50;
+  color: var(--heading-color);
   font-size: 2.5rem;
   margin-bottom: 10px;
 }
 
 .recipe-title-section .recipe-description {
-  color: #555;
+  color: var(--muted);
   font-size: 1.1rem;
   margin-bottom: 0;
 }
@@ -85,14 +85,14 @@
 }
 
 .info-item strong {
-  color: #2c3e50;
+  color: var(--heading-color);
   display: block;
   margin-bottom: 8px;
   font-size: 1rem;
 }
 
 .info-item p {
-  color: #e74c3c;
+  color: var(--subheading-color);
   font-size: 1.3rem;
   font-weight: bold;
   margin: 0;
@@ -117,8 +117,8 @@
 
 .ingredients-section h2,
 .instructions-section h2 {
-  color: #2c3e50;
-  border-bottom: 3px solid #e74c3c;
+  color: var(--heading-color);
+  border-bottom: 3px solid var(--subheading-color);
   padding-bottom: 10px;
   margin-bottom: 20px;
 }
@@ -227,7 +227,7 @@
 }
 
 .delete-button {
-  background-color: #e74c3c;
+  background-color: var(--danger);
   color: white;
   border: none;
   padding: 8px 14px;
@@ -236,5 +236,5 @@
   font-weight: bold;
 }
 .delete-button:hover {
-  background-color: #c0392b;
+  background-color: rgba(var(--danger-rgb),0.9);
 }

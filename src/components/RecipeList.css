@@ -8,7 +8,7 @@
 }
 
 .recipe-list h1 {
-  color: #2c3e50;
+  color: var(--heading-color);
   font-size: 2.5rem;
   margin-bottom: 5px;
   text-align: center;
@@ -16,7 +16,7 @@
 
 .subtitle {
   text-align: center;
-  color: #7f8c8d;
+  color: var(--muted);
   font-size: 1.1rem;
   margin-bottom: 30px;
 }
@@ -43,7 +43,7 @@
 
 .sort-container select {
   padding: 8px 12px;
-  border: 2px solid #3498db;
+  border: 2px solid var(--subheading-color);
   border-radius: 5px;
   font-size: 0.95rem;
   direction: rtl;
@@ -54,7 +54,7 @@
 }
 
 .sort-container select:hover {
-  border-color: #2980b9;
+  border-color: rgba(255,107,107,0.8);
 }
 
 .category-section {
@@ -65,7 +65,7 @@
   color: #2c3e50;
   font-size: 1.8rem;
   padding: 15px 0;
-  border-bottom: 3px solid #e74c3c;
+  border-bottom: 3px solid var(--subheading-color);
   margin-bottom: 20px;
 }
 
@@ -90,7 +90,7 @@
 .recipe-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-color: #e74c3c;
+  border-color: var(--subheading-color);
 }
 
 .recipe-image {
@@ -134,7 +134,7 @@
 
 .learn-more {
   padding: 8px 12px;
-  background-color: #e74c3c;
+  background-color: var(--subheading-color);
   color: white;
   border: none;
   border-radius: 5px;
@@ -147,7 +147,7 @@
 }
 
 .learn-more:hover {
-  background-color: #c0392b;
+  background-color: rgba(var(--danger-rgb),0.9);
 }
 
 .reaction-button {
