@@ -42,7 +42,7 @@ const FOOD_EMOJI_CATALOG = [
   { emoji: '🍏', keywords: ['green apple', 'תפוח'] },
   { emoji: '🍐', keywords: ['pear', 'אגס'] },
   { emoji: '🍊', keywords: ['orange', 'תפוז'] },
-  { emoji: '🍋', keywords: ['lemon', 'לימון'] },
+  { emoji: '🍋', keywords: ['lemon', 'לימון', 'לימונדה'] },
   { emoji: '🍌', keywords: ['banana', 'בננה'] },
   { emoji: '🍉', keywords: ['watermelon', 'אבטיח'] },
   { emoji: '🍇', keywords: ['grape', 'ענבים'] },

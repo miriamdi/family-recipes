@@ -506,7 +506,7 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
               textAlign: 'right'
             }}
           >
-            מאת {recipe.proposerName || recipe.display_name || 'משתמש'} | {formatDate(recipe.created_at)}{recipe.updated_at && recipe.updated_at !== recipe.created_at ? ` [עריכה אחרונה ${formatDate(recipe.updated_at)}]` : ''}
+           העלאה: {recipe.proposerName || recipe.display_name || 'משתמש'} {formatDate(recipe.created_at)}{recipe.updated_at && recipe.updated_at !== recipe.created_at ? ` | עריכה אחרונה ${formatDate(recipe.updated_at)}` : ''}
           </div>
 
           {isEditing && (
