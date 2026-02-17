@@ -22,7 +22,7 @@ function AuthControls({ user, setUser, displayName, setDisplayName, userLoading 
       const { data, error } = await supabase
         .from('approved_emails')
         .select('email')
-        .eq('email', email)
+        .ilike('email', email)
         .maybeSingle();
 
       if (error) throw error;
