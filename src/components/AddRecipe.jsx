@@ -22,6 +22,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
   const [instructions, setInstructions] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [invalidFields, setInvalidFields] = useState([]);
   const [categories, setCategories] = useState([]);
   const CATEGORY_OPTIONS = [
     'מנות פתיחה',
@@ -605,14 +606,26 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
     e.preventDefault();
     setMessage('');
     setError('');
+    setInvalidFields([]);
 
     if (userLoading) {
       setError('טוען נתוני התחברות...');
       return;
     }
 
-    if (!recipeName || !category || !workTimeValue || !totalTimeValue || !servings || !difficulty || !source || ingredients.length === 0 || !instructions.trim()) {
-      setError("בבקשה למלא את כל השדות הנדרשים");
+    const missing = [];
+    if (!recipeName) missing.push('recipeName');
+    if (!category) missing.push('category');
+    if (!workTimeValue) missing.push('workTimeValue');
+    if (!totalTimeValue) missing.push('totalTimeValue');
+    if (!servings) missing.push('servings');
+    if (!difficulty) missing.push('difficulty');
+    if (!source) missing.push('source');
+    if (!ingredients || ingredients.length === 0) missing.push('ingredients');
+    if (!instructions || !instructions.trim()) missing.push('instructions');
+    if (missing.length) {
+      setInvalidFields(missing);
+      setError('נא למלא את כל השדות המסומנים');
       return;
     }
 
@@ -961,7 +974,6 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
         </div>
 
         {message && <div className={styles.successMessage}>{message}</div>}
-        {error && <div className={styles.errorMessage}>{error}</div>}
 
         <form className={styles.form} onSubmit={handleSubmit}>
           <div className={styles.formGroup}>
@@ -1019,14 +1031,14 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
             <div className={styles.nameRow}>
               <div className={styles.inputWithEmojiWrapper}>
                 <span className={styles.inputEmojiPrefix} aria-hidden="true">{image}</span>
-                <input className={styles.recipeNameInput} type="text" value={recipeName} onChange={e => setRecipeName(e.target.value)} aria-label={hebrew.recipeName} />
+                <input className={`${styles.recipeNameInput} ${invalidFields.includes('recipeName') ? styles.invalidField : ''}`} type="text" value={recipeName} onChange={e => setRecipeName(e.target.value)} aria-label={hebrew.recipeName} />
               </div>
             </div>
           </div>
 
-          <div className={styles.formGroup}>
+          <div className={`${styles.formGroup} ${invalidFields.includes('category') ? styles.invalidField : ''}`}>
             <label>{hebrew.categoryLabel}</label>
-            <select value={category} onChange={e => setCategory(e.target.value)}>
+            <select className={invalidFields.includes('category') ? styles.invalidField : ''} value={category} onChange={e => setCategory(e.target.value)}>
               <option value="">נא לבחור קטגוריה</option>
               {CATEGORY_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>{opt}</option>
@@ -1065,10 +1077,10 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
           </div>
 
             <div className={styles.formRow}>
-            <div className={styles.formGroup}>
+            <div className={`${styles.formGroup} ${invalidFields.includes('workTimeValue') ? styles.invalidField : ''}`}>
               <label>זמן עבודה</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input type="number" value={workTimeValue} onChange={e => setWorkTimeValue(e.target.value)} min="0" style={{ width: 120 }} />
+                <input className={invalidFields.includes('workTimeValue') ? styles.invalidField : ''} type="number" value={workTimeValue} onChange={e => setWorkTimeValue(e.target.value)} min="0" style={{ width: 120 }} />
                 <select value={workTimeUnit} onChange={e => setWorkTimeUnit(e.target.value)}>
                   <option value="דקות">דקות</option>
                   <option value="שעות">שעות</option>
@@ -1076,10 +1088,10 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
                 </select>
               </div>
             </div>
-            <div className={styles.formGroup}>
+            <div className={`${styles.formGroup} ${invalidFields.includes('totalTimeValue') ? styles.invalidField : ''}`}>
               <label>זמן הכנה כולל</label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input type="number" value={totalTimeValue} onChange={e => setTotalTimeValue(e.target.value)} min="0" style={{ width: 120 }} />
+                <input className={invalidFields.includes('totalTimeValue') ? styles.invalidField : ''} type="number" value={totalTimeValue} onChange={e => setTotalTimeValue(e.target.value)} min="0" style={{ width: 120 }} />
                 <select value={totalTimeUnit} onChange={e => setTotalTimeUnit(e.target.value)}>
                   <option value="דקות">דקות</option>
                   <option value="שעות">שעות</option>
@@ -1090,13 +1102,13 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
           </div>
 
           <div className={styles.formRow}>
-            <div className={styles.formGroup}>
+            <div className={`${styles.formGroup} ${invalidFields.includes('servings') ? styles.invalidField : ''}`}>
               <label>{hebrew.servingsLabel}</label>
-              <input type="text" value={servings} onChange={e => setServings(e.target.value)} placeholder="" />
+              <input className={invalidFields.includes('servings') ? styles.invalidField : ''} type="text" value={servings} onChange={e => setServings(e.target.value)} placeholder="" />
             </div>
             <div className={styles.formGroup}>
               <label>{hebrew.difficultyLabel}</label>
-              <select value={difficulty} onChange={e => setDifficulty(e.target.value)}>
+              <select className={invalidFields.includes('difficulty') ? styles.invalidField : ''} value={difficulty} onChange={e => setDifficulty(e.target.value)}>
                 <option value="easy">קל</option>
                 <option value="medium">בינוני</option>
                 <option value="hard">קשה</option>
@@ -1106,10 +1118,10 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
 
           <div className="form-group">
             <label>{hebrew.sourceLabel}</label>
-            <input type="text" value={source} onChange={e => setSource(e.target.value)} />
+            <input className={invalidFields.includes('source') ? styles.invalidField : ''} type="text" value={source} onChange={e => setSource(e.target.value)} />
           </div>
 
-          <div className={styles.formGroup}>
+          <div className={`${styles.formGroup} ${invalidFields.includes('ingredients') ? styles.invalidField : ''}`}>
             <label>{hebrew.ingredientsList}</label>
             {ingredients.map((ing, i) => (
               <div key={i} className={styles.ingredientRow} style={{ marginBottom: 8 }}>
@@ -1160,13 +1172,15 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
             </div>
           </div>
 
-          <div className={styles.formGroup}>
+          <div className={`${styles.formGroup} ${invalidFields.includes('instructions') ? styles.invalidField : ''}`}>
             <label>{hebrew.stepsList}</label>
-            <textarea value={instructions} onChange={e => setInstructions(e.target.value)} rows={6} />
+            <textarea className={invalidFields.includes('instructions') ? styles.invalidField : ''} value={instructions} onChange={e => setInstructions(e.target.value)} rows={6} />
           </div>
 
           <div className={styles.formButtons}>
             <button type="submit" className={styles.submitButton} disabled={submitting}>{submitting ? 'שולח…' : (editMode ? 'עדכון מתכון' : hebrew.submit)}</button>
+            {error && <div className={styles.errorInline} role="alert">{error}</div>}
+            <div style={{ flex: 1 }} />
             <button type="button" className={styles.cancelButton} onClick={() => { 
               setShowForm(false); 
               setError(''); 

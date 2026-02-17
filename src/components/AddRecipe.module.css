@@ -31,7 +31,11 @@
 .formGroup input, .formGroup textarea, .formGroup select { padding:10px; border:1px solid #d6d9db; border-radius:8px; font-size:0.95rem; direction:rtl; }
 .formGroup input:focus, .formGroup textarea:focus, .formGroup select:focus { border-color: var(--brand); box-shadow: 0 0 8px rgba(231,76,60,0.08); }
 .formRow { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.formButtons { display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px; }
+.formButtons { display:flex; gap:10px; margin-top:10px; align-items:center; }
+.formButtonsColumn { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+
+.invalidField { border-color: var(--danger) !important; box-shadow: 0 0 0 4px rgba(231,76,60,0.06); }
+.errorInline { background-color: #fdecea; color: #721c24; padding: 8px 10px; border-radius: 6px; border: 1px solid #f1c1c6; font-size:0.95rem; }
 
 .ingredientRow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .ingredientRow input { min-width:88px; }
