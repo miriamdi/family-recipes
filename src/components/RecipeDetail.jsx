@@ -555,7 +555,7 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
           {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
             <div style={{ marginTop: 8, marginBottom: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {recipe.tags.map((t, idx) => (
-                <span key={idx} style={{ background: '#f1f4f6', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid rgba(0,0,0,0.06)' }}>{t}</span>
+                <span key={idx} style={{ background: 'var(--chip-bg)', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid var(--muted-border)' }}>{t}</span>
               ))}
             </div>
           )}
@@ -621,7 +621,7 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
       />
 
       {/* Image upload section */}
-      <div style={{ marginTop: 32, borderTop: '1px solid #ddd', paddingTop: 24 }}>
+      <div style={{ marginTop: 32, borderTop: '1px solid var(--light-border)', paddingTop: 24 }}>
         <h3 style={{ marginBottom: 16 }}>הכנת את המתכון? כאן אפשר להשוויץ עם תמונה 📸</h3>
         <ImageUploader
           recipeId={recipeId}

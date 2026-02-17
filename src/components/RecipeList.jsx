@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { hebrew } from '../data/hebrew';
 import AddRecipe from './AddRecipe';
 import styles from './RecipeList.module.css';
@@ -17,6 +18,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('');
   const [activeTag, setActiveTag] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadRecipes();
@@ -270,9 +272,15 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
             placeholder="חיפוש"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', minWidth: 220 }}
+            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--light-border)', minWidth: 220 }}
           />
           <button onClick={() => { setSearchQuery(''); setActiveCategory(''); setActiveTag(''); }} style={{ padding: '6px 10px' }}>נקה</button>
+          <button className={styles.randomButton} onClick={() => {
+            const pool = (filteredRecipes && filteredRecipes.length) ? filteredRecipes : allRecipes;
+            if (!pool || pool.length === 0) return;
+            const choice = pool[Math.floor(Math.random() * pool.length)];
+            navigate(`/recipe/${choice.id}`);
+          }}>מתכון אקראי</button>
         </div>
 
         <div className={styles.sortContainer}>
@@ -340,7 +348,7 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
                             {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
                               <div style={{ marginBottom: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                 {recipe.tags.map((t, idx) => (
-                                  <button key={idx} onClick={(e) => { e.preventDefault(); setActiveTag(t); }} style={{ background: '#f1f4f6', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer' }}>{t}</button>
+                                  <button key={idx} onClick={(e) => { e.preventDefault(); setActiveTag(t); }} style={{ background: 'var(--chip-bg)', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid var(--muted-border)', cursor: 'pointer' }}>{t}</button>
                                 ))}
                               </div>
                             )}
@@ -389,9 +397,9 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
                   <div style={{ marginTop: 8 }}>
                     {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
                       <div style={{ marginBottom: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {recipe.tags.map((t, idx) => (
-                          <button key={idx} onClick={(e) => { e.preventDefault(); setActiveTag(t); }} style={{ background: '#f1f4f6', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer' }}>{t}</button>
-                        ))}
+                                {recipe.tags.map((t, idx) => (
+                                  <button key={idx} onClick={(e) => { e.preventDefault(); setActiveTag(t); }} style={{ background: 'var(--chip-bg)', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid var(--muted-border)', cursor: 'pointer' }}>{t}</button>
+                                ))}
                       </div>
                     )}
                     <button onClick={(e) => handleReaction(e, recipe.id)} className={styles.reactionButton} style={{ opacity: r.liked ? 1 : 0.6 }} aria-pressed={!!r.liked} aria-label={`לאהוב ${recipe.title}`}>

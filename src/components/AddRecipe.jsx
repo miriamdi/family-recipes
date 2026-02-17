@@ -1043,7 +1043,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
                 </div>
                 {importError && <div className={styles.errorMessage} style={{ marginTop: 6 }}>{importError}</div>}
                 {parsedPreview && (
-                  <div style={{ border: '1px solid #ddd', padding: 8, marginTop: 8 }}>
+                  <div style={{ border: '1px solid var(--light-border)', padding: 8, marginTop: 8 }}>
                     <strong>תצוגה מקדימה (טקסט עריכה):</strong>
                     <div style={{ marginTop: 6 }}>
                       <div

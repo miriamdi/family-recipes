@@ -35,7 +35,7 @@
 .proposal-form input,
 .proposal-form textarea {
   padding: 0.7rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--light-border);
   border-radius: 6px;
   font-size: 1rem;
 }
@@ -147,7 +147,7 @@
 .add-comment-form input {
   flex: 1;
   padding: 0.4rem 0.7rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--light-border);
   border-radius: 5px;
 }
 

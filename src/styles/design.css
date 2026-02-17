@@ -11,19 +11,29 @@
   --heading-color: #6F4E37; /* coffee brown for main headings */
   --subheading-color: #2f7683; /* coral for subheadings and accents */
   --brand: var(--subheading-color);
-  --add-color: #4CAF50; /* green for additions */
+  --add-color: #1b904e; /* green for additions */
   --add-color-rgb: 76,175,80;
-  --danger: #D32F2F; /* red for deletions */
+  --danger: #861111; /* red for deletions */
   --danger-rgb: 211,47,47;
   --highlight: #FFF3E0;
   --card-shadow: 0 8px 30px rgba(17,24,39,0.06);
-  --shadow: 0 4px 18px rgba(17,24,39,0.06);
+  --shadow: 0 4px 18px rgba(60, 221, 194, 0.06);
   --success: var(--add-color);
   --radius: 14px;
   --gap: 18px;
   --section-gap: 12px;
   --max-width: 1200px;
   --focus: 3px solid rgba(255,107,107,0.14);
+  /* Additional palette tokens used across components */
+  --accent: #2f7683;
+  --chip-bg: #f1f4f6;
+  --muted-border: rgba(0,0,0,0.06);
+  --light-border: #ddd;
+  --preview-emoji-bg: #f6f7f8;
+  --reaction-bg: #f7f8f9;
+  --reaction-border: #e6e7e8;
+  --reaction-hover-bg: #eef1f5;
+  --random-pink: #a95f8c;;
 }
 
 html, body, #root {
