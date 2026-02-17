@@ -23,6 +23,16 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [categories, setCategories] = useState([]);
+  const CATEGORY_OPTIONS = [
+    'מנות פתיחה',
+    'סלטים',
+    'מרקים',
+    'עיקריות',
+    'תוספות',
+    'מאפים ולחמים',
+    'קינוחים',
+    'משקאות'
+  ];
   const [categorySuggestions, setCategorySuggestions] = useState([]);
   const [productSuggestions, setProductSuggestions] = useState([]);
   const [productSuggestionsAll, setProductSuggestionsAll] = useState([]);
@@ -968,17 +978,15 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
 
           <div className={styles.formGroup}>
             <label>{hebrew.categoryLabel}</label>
-            <input
-              type="text"
-              value={category}
-              onChange={e => setCategory(e.target.value)}
-              list="category-suggestions"
-              placeholder=" נא לבחור קטגוריה קיימת או להכניס קטגוריה חדשה"
-              aria-autocomplete="list"
-            />
-            <datalist id="category-suggestions">
-              {categorySuggestions.map((cat, idx) => <option key={idx} value={cat} />)}
-            </datalist>
+            <select value={category} onChange={e => setCategory(e.target.value)}>
+              <option value="">נא לבחור קטגוריה</option>
+              {CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+              {editMode && category && !CATEGORY_OPTIONS.includes(category) && (
+                <option value={category}>{category}</option>
+              )}
+            </select>
           </div>
 
             <div className={styles.formRow}>

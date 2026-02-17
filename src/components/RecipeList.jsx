@@ -260,18 +260,44 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
           (() => {
             const groups = {};
             (allRecipes || []).forEach(r => {
-              const cat = (r.category || 'אחרים').trim() || 'אחרים';
+              const catRaw = (r.category || '').trim();
+              const cat = catRaw || 'אחרים';
               if (!groups[cat]) groups[cat] = [];
               groups[cat].push(r);
             });
-            const sortedCats = Object.keys(groups).sort((a,b) => a.localeCompare(b));
+
+            const ORDER = [
+              'מנות פתיחה',
+              'סלטים',
+              'מרקים',
+              'עיקריות',
+              'תוספות',
+              'מאפים ולחמים',
+              'קינוחים',
+              'משקאות'
+            ];
+
+            // Render categories in the requested order; any other categories go into 'אחרים' after
+            const elements = [];
+            ORDER.forEach(cat => {
+              if (groups[cat]) {
+                elements.push(cat);
+              }
+            });
+            // collect other categories
+            const otherCats = Object.keys(groups).filter(c => !ORDER.includes(c) && c !== 'אחרים').sort((a,b) => a.localeCompare(b));
+            if (groups['אחרים'] || otherCats.length) elements.push('אחרים');
+
             return (
               <div>
-                {sortedCats.map(cat => (
+                {elements.map(cat => (
                   <div key={cat} style={{ marginBottom: 24 }}>
                     <h2 className={styles.categoryTitle}>{cat}</h2>
                     <div className={styles.recipesGrid}>
-                      {groups[cat].map((recipe) => {
+                      {(cat === 'אחרים'
+                        ? [ ...(groups['אחרים'] || []), ...otherCats.flatMap(c => groups[c] || []) ]
+                        : groups[cat]
+                      ).map((recipe) => {
           const r = reactions[recipe.id] || { likes: 0 };
           // Get preview image from recipe_images table
           const images = recipeImages[recipe.id] || [];

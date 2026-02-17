@@ -19,6 +19,14 @@
   margin-bottom: 24px;
 }
 
+.categoryTitle {
+  font-size: 1.25rem;
+  margin: 8px 0 12px 0;
+  color: var(--brand);
+  border-bottom: 1px dashed rgba(0,0,0,0.06);
+  padding-bottom: 8px;
+}
+
 .listControls {
   display: flex;
   justify-content: space-between;
