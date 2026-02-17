@@ -76,7 +76,10 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
           ...r,
           id: r.id,
           prepTime: r.prep_time,
-          cookTime: r.cook_time
+          cookTime: r.cook_time,
+          prep_time_text: r.prep_time_text,
+          cook_time_text: r.cook_time_text,
+          servings: (r.servings_text && r.servings_text.trim()) ? r.servings_text : r.servings
         }));
 
         setAllRecipes(mapped);
@@ -183,6 +186,34 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
     return images[index];
   };
 
+  const formatMinutesToText = (mins) => {
+    if (mins == null || mins === '' || Number.isNaN(Number(mins))) return '—';
+    const m = Number(mins);
+    if (!Number.isFinite(m)) return '—';
+    if (m % 1440 === 0) return `${m / 1440} ימים`;
+    if (m % 60 === 0) return `${m / 60} שעות`;
+    return `${m} דקות`;
+  };
+
+  const getRecipeTimeText = (recipe) => {
+    // Accept multiple possible property names from different sources
+    const txt = recipe.cook_time_text ?? recipe.cookTimeText ?? recipe.cook_time ?? null;
+    if (typeof txt === 'string' && txt.trim()) return txt;
+    const cook = recipe.cookTime ?? recipe.cook_time ?? null;
+    const prep = recipe.prepTime ?? recipe.prep_time ?? null;
+    if (cook != null) return formatMinutesToText(cook);
+    if (prep != null) return formatMinutesToText(prep);
+    return '—';
+  };
+
+  const getServingsText = (recipe) => {
+    const txt = recipe.servings_text ?? recipe.servingsText ?? null;
+    if (typeof txt === 'string' && txt.trim()) return txt;
+    if (recipe.servings != null) return String(recipe.servings);
+    return '—';
+  };
+
+
   return (
     <div className={styles.recipeList}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -262,8 +293,8 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
               <p className={styles.recipeDescription}>{recipe.description}</p>
 
               <div className={styles.recipeMeta}>
-                <span>⏱️ {recipe.cookTime ? `${recipe.cookTime} דקות` : (recipe.prepTime ? `${recipe.prepTime} דקות` : '—')}</span>
-                <span>👥 {recipe.servings}</span>
+                <span>⏱️ {getRecipeTimeText(recipe)}</span>
+                <span>👥 {getServingsText(recipe)}</span>
               </div>
 
               {recipe.profiles?.display_name && (
@@ -306,8 +337,8 @@ export default function RecipeList({ onSelectRecipe, user, displayName, userLoad
                   <p className={styles.recipeDescription}>{recipe.description}</p>
 
                   <div className={styles.recipeMeta}>
-                    <span>⏱️ {recipe.cookTime ? `${recipe.cookTime} דקות` : (recipe.prepTime ? `${recipe.prepTime} דקות` : '—')}</span>
-                    <span>👥 {recipe.servings}</span>
+                    <span>⏱️ {getRecipeTimeText(recipe)}</span>
+                    <span>👥 {getServingsText(recipe)}</span>
                   </div>
 
                   {recipe.profiles?.display_name && (

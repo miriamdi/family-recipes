@@ -54,7 +54,16 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
             return;
           }
 
-          const normalized = { ...dbRecipe, prepTime: dbRecipe.prep_time, cookTime: dbRecipe.cook_time };
+          const normalized = { 
+            ...dbRecipe, 
+            prepTime: dbRecipe.prep_time, 
+            cookTime: dbRecipe.cook_time,
+            prep_time_text: dbRecipe.prep_time_text,
+            cook_time_text: dbRecipe.cook_time_text,
+            // Preserve textual servings separately and keep numeric `servings` for compatibility.
+            servings_text: (dbRecipe.servings_text && dbRecipe.servings_text.trim()) ? dbRecipe.servings_text : null,
+            servings: (dbRecipe.servings_text && dbRecipe.servings_text.trim()) ? dbRecipe.servings_text : dbRecipe.servings
+          };
           // Try to fetch the author's display name (profiles.display_name) and attach as proposerName
           try {
             if (dbRecipe.user_id) {
@@ -128,7 +137,7 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
   const recipe = allRecipes.find((r) => r.id === recipeId);
 
   if (!recipe) {
-    return <div>המתכון לא נמצא</div>;
+    return <div>הישארו על הקו, המתכון כבר עולה...</div>;
   }
 
   const isOwner = user && recipe.user_email === user.email;
@@ -287,11 +296,27 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
     // If Supabase is configured, persist the change to the DB
     if (useSupabase && supabase) {
       try {
-        const { data: dbRow, error } = await supabase.from('recipes').update(updated).eq('id', updated.id).select().single();
-        if (error) throw error;
-        const normalized = { ...dbRow, prepTime: dbRow.prep_time, cookTime: dbRow.cook_time };
-        setAllRecipes([normalized]);
-        return;
+        // Try updating including optional *_text fields first; if DB rejects due to missing columns, retry without them.
+        const toUpdate = { ...updated };
+        try {
+          const { data: dbRow, error } = await supabase.from('recipes').update(toUpdate).eq('id', updated.id).select().single();
+          if (error) throw error;
+          const normalized = { ...dbRow, prepTime: dbRow.prep_time, cookTime: dbRow.cook_time };
+          setAllRecipes([normalized]);
+          return;
+        } catch (innerErr) {
+          const lower = (innerErr?.message || '').toLowerCase();
+          const missingCols = ['cook_time_text','prep_time_text','servings_text'].filter(col => lower.includes(col));
+          if (missingCols.length) {
+            missingCols.forEach(c => delete toUpdate[c]);
+            const { data: dbRow2, error: err2 } = await supabase.from('recipes').update(toUpdate).eq('id', updated.id).select().single();
+            if (err2) throw err2;
+            const normalized = { ...dbRow2, prepTime: dbRow2.prep_time, cookTime: dbRow2.cook_time };
+            setAllRecipes([normalized]);
+            return;
+          }
+          throw innerErr;
+        }
       } catch (err) {
         console.error('Failed to save updated recipe to Supabase, falling back to localStorage', err);
         // fall through to localStorage fallback
@@ -428,6 +453,19 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
       return '';
     }
   };
+
+  const formatMinutesToText = (mins) => {
+    if (mins == null || mins === '' || Number.isNaN(Number(mins))) return '-';
+    const m = Number(mins);
+    if (!Number.isFinite(m)) return '-';
+    if (m % 1440 === 0) {
+      return `${m / 1440} ימים`;
+    }
+    if (m % 60 === 0) {
+      return `${m / 60} שעות`;
+    }
+    return `${m} דקות`;
+  };
   return (
     <div className="recipe-detail">
       <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 8 }}>
@@ -496,15 +534,15 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
       <div className="recipe-info">
         <div className="info-item">
           <strong>⏱️ {hebrew.prepTimeLabel}</strong>
-          <p>{(recipe.prepTime ?? recipe.prep_time) || '-'} דקות</p>
+          <p>{(recipe.prep_time_text && recipe.prep_time_text.trim()) ? recipe.prep_time_text : formatMinutesToText(recipe.prepTime ?? recipe.prep_time)}</p>
         </div>
         <div className="info-item">
           <strong>⏱️ {hebrew.cookTime}</strong>
-          <p>{(recipe.cookTime ?? recipe.cook_time) || '-'} דקות</p>
+          <p>{(recipe.cook_time_text && recipe.cook_time_text.trim()) ? recipe.cook_time_text : formatMinutesToText(recipe.cookTime ?? recipe.cook_time)}</p>
         </div>
         <div className="info-item">
           <strong>👥 {hebrew.servings}</strong>
-          <p>{recipe.servings}</p>
+          <p>{(recipe.servings_text && recipe.servings_text.trim()) ? recipe.servings_text : recipe.servings}</p>
         </div>
         <div className="info-item">
           <strong>📊 {hebrew.difficulty}</strong>
