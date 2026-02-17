@@ -41,6 +41,9 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
   const [unitSuggestionsAll, setUnitSuggestionsAll] = useState([]);
   const [displayedUnitSuggestions, setDisplayedUnitSuggestions] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState('');
+  const [tagSuggestions, setTagSuggestions] = useState([]);
   // Import-from-text improved state
   const [showImport, setShowImport] = useState(false);
   const [importText, setImportText] = useState('');
@@ -112,6 +115,8 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
       setSource(initialData.source || '');
       setIngredients(Array.isArray(initialData.ingredients) ? initialData.ingredients.map(i => i.type === 'subtitle' ? { type: 'subtitle', text: i.text } : { type: 'ingredient', product_name: i.product_name || i.name || '', unit: i.unit || '', amount: i.amount_raw ?? i.amount ?? i.qty ?? '', comment: i.comment || '' }) : [{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
       setInstructions(Array.isArray(initialData.steps) ? initialData.steps.join('\n') : (initialData.steps || ''));
+      // tags
+      setTags(Array.isArray(initialData.tags) ? initialData.tags : (initialData.tags ? initialData.tags : []));
     }
     // build category list from provided `recipes` only (DB-sourced)
     const cats = Array.from(new Set((recipes || []).map(r => r.category).filter(Boolean)));
@@ -121,6 +126,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
     try {
       const products = new Set();
       const units = new Set();
+      const tagSet = new Set();
       (recipes || []).forEach(r => {
         if (!r || !Array.isArray(r.ingredients)) return;
         r.ingredients.forEach(item => {
@@ -132,9 +138,13 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
           if (pname) products.add(pname.toLowerCase());
           if (unit) units.add(unit.toLowerCase());
         });
+        if (Array.isArray(r.tags)) {
+          r.tags.forEach(t => { if (t) tagSet.add(String(t).toLowerCase()); });
+        }
       });
       const prodList = Array.from(products).map(p => p.charAt(0).toUpperCase() + p.slice(1));
       const unitList = Array.from(units).map(u => u.charAt(0).toUpperCase() + u.slice(1));
+      const tagList = Array.from(tagSet).map(t => t.charAt(0).toUpperCase() + t.slice(1));
       if (prodList.length) {
         setProductSuggestions(prodList);
         setProductSuggestionsAll(prodList);
@@ -145,6 +155,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
         setUnitSuggestionsAll(unitList);
         setDisplayedUnitSuggestions(unitList);
       }
+      if (tagList.length) setTagSuggestions(tagList);
     } catch (err) {
       // ignore
     }
@@ -195,6 +206,19 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
           setUnitSuggestions(unitList);
           setUnitSuggestionsAll(unitList);
           setDisplayedUnitSuggestions(unitList);
+          // fetch tags from DB suggestions
+          try {
+            const { data: tagData } = await supabase.from('recipes').select('tags').not('tags', 'is', null);
+            const tset = new Set();
+            (tagData || []).forEach(r => {
+              if (!r || !Array.isArray(r.tags)) return;
+              r.tags.forEach(t => { if (t) tset.add(String(t).toLowerCase()); });
+            });
+            const tlist = Array.from(tset).map(t => t.charAt(0).toUpperCase() + t.slice(1));
+            if (tlist.length) setTagSuggestions(tlist);
+          } catch (e) {
+            // ignore
+          }
       } catch (err) {
         console.warn('Failed to fetch suggestions from Supabase:', err);
         setCategorySuggestions([]);
@@ -256,6 +280,28 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
       const master = unitSuggestionsAll.length ? unitSuggestionsAll : unitSuggestions;
       const filtered = value ? master.filter(u => u.toLowerCase().includes(value.toLowerCase())) : master;
       setDisplayedUnitSuggestions(filtered);
+    }
+  };
+
+  const addTag = (t) => {
+    if (!t) return;
+    const v = String(t).trim();
+    if (!v) return;
+    setTags(prev => prev.includes(v) ? prev : [...prev, v]);
+    setTagInput('');
+  };
+
+  const removeTag = (idx) => {
+    setTags(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const val = tagInput.trim().replace(/,$/, '');
+      addTag(val);
+    } else if (e.key === 'Escape') {
+      setTagInput('');
     }
   };
 
@@ -648,6 +694,8 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
         }
       }),
       steps: instructions.split('\n').map(s => s.trim()).filter(Boolean)
+      ,
+      tags: tags.map(t => String(t).trim()).filter(Boolean)
     };
 
     // If Supabase is configured, attempt to save there (requires authenticated + approved user)
@@ -987,6 +1035,33 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
                 <option value={category}>{category}</option>
               )}
             </select>
+          </div>
+
+          <div className={styles.formGroup}>
+            <label>תגיות</label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                value={tagInput}
+                onChange={e => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                list="tag-suggestions"
+                placeholder="יש להוסיף תגית ואז Enter"
+                style={{ flex: 1 }}
+              />
+              <button type="button" className={styles.addIngredient} onClick={() => addTag(tagInput)}>הוספה</button>
+            </div>
+            <datalist id="tag-suggestions">
+              {(tagSuggestions || []).map((t, idx) => <option key={idx} value={t} />)}
+            </datalist>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {tags.map((t, i) => (
+                <div key={i} className={styles.tagChip}>
+                  <span>{t}</span>
+                  <button type="button" onClick={() => removeTag(i)}>×</button>
+                </div>
+              ))}
+            </div>
           </div>
 
             <div className={styles.formRow}>

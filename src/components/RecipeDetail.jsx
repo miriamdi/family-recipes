@@ -551,10 +551,19 @@ export default function RecipeDetail({ recipeId, user, displayName }) {
       </div>
 
       {recipe.source ? (
-        <div style={{ marginTop: 8, marginBottom: 12, direction: 'rtl', textAlign: 'right' }}>
-          <strong style={{ display: 'block', marginBottom: 4 }}>🔗 מקור</strong>
-          <div style={{ color: '#333', wordBreak: 'break-word' }}>{recipe.source}</div>
-        </div>
+        <>
+          {Array.isArray(recipe.tags) && recipe.tags.length > 0 && (
+            <div style={{ marginTop: 8, marginBottom: 6, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {recipe.tags.map((t, idx) => (
+                <span key={idx} style={{ background: '#f1f4f6', padding: '6px 8px', borderRadius: 999, fontSize: 13, border: '1px solid rgba(0,0,0,0.06)' }}>{t}</span>
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop: 8, marginBottom: 12, direction: 'rtl', textAlign: 'right' }}>
+            <strong style={{ display: 'block', marginBottom: 4 }}>🔗 מקור</strong>
+            <div style={{ color: '#333', wordBreak: 'break-word' }}>{recipe.source}</div>
+          </div>
+        </>
       ) : null}
 
       <div className="recipe-content">

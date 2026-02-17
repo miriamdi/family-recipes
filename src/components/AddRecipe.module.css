@@ -52,6 +52,9 @@
 .cancelButton { padding:12px; background:#95a5a6; color:white; border:none; border-radius:8px; font-weight:700; }
 .cancelButton:hover { background:#7f8c8d; }
 
+.tagChip { display:inline-flex; align-items:center; gap:8px; background:#f1f4f6; padding:6px 8px; border-radius:999px; border:1px solid rgba(0,0,0,0.06); font-size:0.95rem; }
+.tagChip button { background:transparent; border:none; font-size:1.1rem; line-height:1; padding:0 4px; cursor:pointer; }
+
 @media (max-width: 600px) {
   .modalContent { padding:18px; }
   .formRow { grid-template-columns: 1fr; }
