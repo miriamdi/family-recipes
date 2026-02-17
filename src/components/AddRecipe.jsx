@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { hebrew } from '../data/hebrew';
 import styles from './AddRecipe.module.css';
-import { supabase, useSupabase } from '../lib/supabaseClient';
+import { supabase, useSupabase as libUseSupabase } from '../lib/supabaseClient';
 import { getEmojiForName, stripLeadingEmoji } from '../lib/emojiUtils';
 import { formatAmountToFraction, parseAmountToDecimal } from '../lib/formatUtils';
-export default function AddRecipe({ recipes = [], editMode = false, initialData = null, onRecipeAdded = null, onSave = null, onCancel = null, user = null, displayName = null, userLoading = false, useSupabase = false }) {
+export default function AddRecipe({ recipes = [], editMode = false, initialData = null, onRecipeAdded = null, onSave = null, onCancel = null, user = null, displayName = null, userLoading = false, useSupabase: useSupabaseProp = false }) {
   const [recipeName, setRecipeName] = useState('');
   const [image, setImage] = useState('');
   const [category, setCategory] = useState('');
@@ -155,7 +155,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
     // Only fetch suggestions from Supabase (use DB as single source of truth)
     const fetchSuggestions = async () => {
       // If Supabase not configured, leave fallback suggestions (from `recipes`) intact
-      if (!useSupabase || !supabase) {
+      if (!(useSupabaseProp || libUseSupabase) || !supabase) {
         return;
       }
       try {
@@ -193,7 +193,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
       }
     };
     fetchSuggestions();
-  }, [recipes, useSupabase, supabase]);
+  }, [recipes, useSupabaseProp, libUseSupabase, supabase]);
 
   // update a specific ingredient row `i`, field `field`, with `value`
   const handleIngredientChange = (i, field, value) => {
@@ -641,7 +641,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
     };
 
     // If Supabase is configured, attempt to save there (requires authenticated + approved user)
-    if (useSupabase && supabase) {
+    if ((useSupabaseProp || libUseSupabase) && supabase) {
       try {
         const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
         if (authErr || !authUser?.id) {
@@ -653,23 +653,125 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
         if (!editMode) {
           // Use edge function for validation and insert
           const RECIPE_SUBMIT_API = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/recipe-submit`;
-          const res = await fetch(RECIPE_SUBMIT_API, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ...payload, user_id: authUser.id, user_email: authUser.email })
-          });
+          console.log('Calling recipe submit API:', RECIPE_SUBMIT_API);
 
-          if (!res.ok) {
-            const err = await res.json();
-            setError(err.error || 'שגיאה בשמירה בשרת');
+          let res;
+          try {
+            // Prefer Supabase client invoke (includes auth) when available
+            if (supabase && supabase.functions && typeof supabase.functions.invoke === 'function') {
+              console.log('Invoking Supabase function recipe-submit via client');
+              res = await supabase.functions.invoke('recipe-submit', {
+                body: JSON.stringify({ ...payload, user_id: authUser.id, user_email: authUser.email })
+              });
+              // `res` will be a Response-like object from supabase-js; normalize below
+            } else {
+              res = await fetch(RECIPE_SUBMIT_API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...payload, user_id: authUser.id, user_email: authUser.email })
+              });
+            }
+            console.log('recipe-submit response status:', res?.status);
+          } catch (fetchErr) {
+            console.error('Fetch error when calling recipe-submit:', fetchErr);
+            const msg = fetchErr && fetchErr.message ? fetchErr.message : String(fetchErr);
+            if (msg.includes('Failed to fetch')) {
+              setError('שגיאת רשת או CORS בעת שליחת המתכון (Failed to fetch)');
+            } else {
+              setError('שגיאת רשת בעת שליחת המתכון: ' + msg);
+            }
             setSubmitting(false);
             return;
           }
 
-          const inserted = await res.json();
+          // Normalize supabase-js invoke return which wraps response data in { data, error }
+          let inserted = null;
+          if (res && typeof res.json === 'function') {
+            // fetch Response
+            if (!res.ok) {
+              let bodyText = '';
+              try { bodyText = await res.text(); } catch (e) { bodyText = '[unable to read response body]'; }
+              console.error('recipe-submit returned non-OK:', { status: res.status, body: bodyText });
+              if (res.status === 401 || res.status === 403) {
+                setError('שגיאת הרשאה (401/403) בעת שמירה — ודאו שאתם מחוברים ומורשים.');
+              } else if (res.status === 404) {
+                setError('הפונקציה לא נמצאה (404) — ודאו שהפונקציה פרוסה ו-URL נכון.');
+              } else {
+                try { const j = JSON.parse(bodyText || '{}'); setError(j.error || `שגיאה בשרת שמירת המתכון (status ${res.status})`); } catch (e) { setError(`שגיאה בשרת שמירת המתכון (status ${res.status})`); }
+              }
+              setSubmitting(false);
+              return;
+            }
+            inserted = await res.json();
+          } else if (res && res.data) {
+            // supabase-js function invoke returns { data, error }
+            if (res.error) {
+              console.error('recipe-submit returned error:', res.error);
+              setError(res.error.message || 'שגיאה בשמירת המתכון');
+              setSubmitting(false);
+              return;
+            }
+            inserted = res.data;
+          }
 
           // Ensure the UI-facing recipe preserves `servings_text` when provided by the form payload.
+          console.debug('recipe-submit inserted result:', inserted);
           const uiRecipe = inserted ? { ...inserted, prepTime: inserted.prep_time, cookTime: inserted.cook_time, servings_text: payload.servings_text ?? inserted.servings_text ?? null } : null;
+          if (!uiRecipe || !uiRecipe.id) {
+            // If there was no explicit error but no row returned, attempt a direct insert via Supabase client as a fallback
+            console.warn('Insert succeeded with no row returned from recipe-submit; attempting direct client insert');
+            try {
+              if (supabase) {
+                // Attach user info to payload for DB insert
+                const clientPayload = { ...payload, user_id: authUser.id, user_email: authUser.email };
+                // Try insert; if DB lacks optional *_text columns, retry without them
+                const tryInsert = async (p) => await supabase.from('recipes').insert(p).select().single();
+                let { data: clientInserted, error: clientErr } = await tryInsert(clientPayload);
+                if (clientErr) {
+                  console.warn('Client insert error, checking for missing *_text columns:', clientErr.message || clientErr);
+                  const lower = (clientErr?.message || '').toLowerCase();
+                  const maybeMissing = ['cook_time_text', 'prep_time_text', 'servings_text'].filter(c => lower.includes(c));
+                  if (maybeMissing.length) {
+                    maybeMissing.forEach(c => delete clientPayload[c]);
+                    const { data: clientInserted2, error: clientErr2 } = await tryInsert(clientPayload);
+                    clientInserted = clientInserted2;
+                    clientErr = clientErr2;
+                  }
+                }
+
+                if (clientErr || !clientInserted || !clientInserted.id) {
+                  console.error('Direct client insert failed', clientErr);
+                  setError('שגיאה: הוספת המתכון נכשלה — יש לבדוק את לוג השרת.');
+                  // still trigger a refetch in parent to be safe
+                  onRecipeAdded && onRecipeAdded(null, { refetch: true });
+                  setSubmitting(false);
+                  return;
+                }
+
+                const uiFromClient = { ...clientInserted, prepTime: clientInserted.prep_time, cookTime: clientInserted.cook_time, servings_text: clientInserted.servings_text ?? payload.servings_text };
+                setMessage(hebrew.successMessage);
+                setTimeout(() => {
+                  onRecipeAdded && onRecipeAdded(uiFromClient, { refetch: true });
+                  setShowForm(false);
+                  setMessage('');
+                  setSubmitting(false);
+                }, 800);
+                return;
+              } else {
+                console.error('Supabase client not available for fallback insert');
+                setError('שגיאה פנימית: לקוח Supabase לא זמין');
+                setSubmitting(false);
+                return;
+              }
+            } catch (cliErr) {
+              console.error('Fallback client insert exception', cliErr);
+              setError('שגיאה בהוספת המתכון (fallback): ' + (cliErr?.message || String(cliErr)));
+              onRecipeAdded && onRecipeAdded(null, { refetch: true });
+              setSubmitting(false);
+              return;
+            }
+          }
+
           setMessage(hebrew.successMessage);
           setTimeout(() => {
             onRecipeAdded && onRecipeAdded(uiRecipe, { refetch: true });
@@ -678,6 +780,72 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
             setSubmitting(false);
           }, 800);
           return;
+        }
+        // EDIT MODE: update existing recipe in-place with retry for missing *_text columns
+        try {
+          const id = initialData?.id || initialData?.recipe_id || initialData?.recipeId;
+          if (!id) {
+            setError('אין מזהה מתכון לעדכון');
+            setSubmitting(false);
+            return;
+          }
+
+          // Attempt to update the recipe row directly via Supabase client
+          const attemptUpdate = async (obj) => {
+            return await supabase.from('recipes').update(obj).eq('id', id).select().single();
+          };
+
+          let { data: updatedRow, error: updateErr } = await attemptUpdate(payload);
+
+          if (updateErr) {
+            console.warn('Initial update error, checking for missing columns:', updateErr.message || updateErr);
+            const lower = (updateErr?.message || '').toLowerCase();
+            const maybeMissing = ['cook_time_text', 'prep_time_text', 'servings_text'].filter(c => lower.includes(c));
+            if (maybeMissing.length) {
+              // retry without the missing columns
+              const retryPayload = { ...payload };
+              maybeMissing.forEach(c => delete retryPayload[c]);
+              const { data: updatedRow2, error: updateErr2 } = await attemptUpdate(retryPayload);
+              if (updateErr2) {
+                console.error('Retry update failed', updateErr2);
+                setError(updateErr2.message || 'שגיאה בעדכון המתכון');
+                setSubmitting(false);
+                return;
+              }
+              updatedRow = updatedRow2;
+            } else {
+              console.error('Supabase update error', updateErr);
+              const msg = updateErr?.message || String(updateErr);
+              if (msg.includes('Failed to fetch')) {
+                setError('שגיאת רשת או CORS בעת שליחת המתכון (Failed to fetch)');
+              } else if (updateErr?.status === 401 || updateErr?.status === 403) {
+                setError('שגיאת הרשאה בעת עדכון — בדקו את ההתחברות.');
+              } else {
+                setError(updateErr.message || 'שגיאה בעדכון המתכון');
+              }
+              setSubmitting(false);
+              return;
+            }
+          }
+
+          const uiRecipe = updatedRow ? { ...updatedRow, prepTime: updatedRow.prep_time, cookTime: updatedRow.cook_time, servings_text: payload.servings_text ?? updatedRow.servings_text ?? null } : null;
+          setMessage('העדכון בוצע בהצלחה');
+          setTimeout(() => {
+            onSave && onSave(uiRecipe);
+            setShowForm(false);
+            setMessage('');
+            setSubmitting(false);
+          }, 600);
+          return;
+        } catch (err) {
+          console.error('Unexpected error during update', err);
+          const msg = err?.message || String(err);
+          if (msg.includes('Failed to fetch')) {
+            setError('שגיאת רשת או CORS בעת שליחת המתכון (Failed to fetch)');
+          } else {
+            setError('שגיאה בשמירה בשרת: ' + msg);
+          }
+          setSubmitting(false);
         }
       } catch (err) {
         console.error('Supabase insert unexpected error', err);
