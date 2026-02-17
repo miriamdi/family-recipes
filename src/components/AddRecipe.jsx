@@ -1016,8 +1016,6 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
               setServings('');
               setDifficulty('easy');
               setSource('');
-              setSourceUrl('');
-              setSourceText('');
               setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
               setInstructions('');
                 if (editMode && onCancel) onCancel();
@@ -1175,7 +1173,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
             <input
               className={invalidFields.includes('source') ? styles.invalidField : ''}
               type="url"
-              placeholder="קישור מקור (https://...)"
+              placeholder="קישור  למקור (אם יש)"
               value={sourceUrl}
               onChange={e => {
                 const v = e.target.value;
@@ -1190,7 +1188,7 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
             <input
               className={invalidFields.includes('source') ? styles.invalidField : ''}
               type="text"
-              placeholder="טקסט לתצוגה (ניתן לעריכה)"
+              placeholder="טקסט לתצוגה "
               value={sourceText}
               onChange={e => setSourceText(e.target.value)}
             />
@@ -1272,8 +1270,6 @@ export default function AddRecipe({ recipes = [], editMode = false, initialData 
               setServings('');
               setDifficulty('easy');
               setSource('');
-              setSourceUrl('');
-              setSourceText('');
               setIngredients([{ type: 'ingredient', product_name: '', unit: '', amount: '', comment: '' }]);
               setInstructions('');
             }}>{hebrew.cancel}</button>
